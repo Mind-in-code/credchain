@@ -9,6 +9,7 @@ import { DEMO_MODE } from '../utils/network'
 const LINKS = [
   { to: '/', label: 'Home', end: true },
   { to: '/verify', label: 'Verify' },
+  { to: '/student', label: 'My Credentials' },
   { to: '/issuer', label: 'Issuer' },
 ]
 

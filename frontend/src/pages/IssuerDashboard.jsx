@@ -246,7 +246,7 @@ export default function IssuerDashboard() {
         <div className="flex flex-wrap gap-2 lg:justify-end">
           <Button to="/issuer/certificates" variant="secondary">
             <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-            Full Registry
+            Issued Certificates
           </Button>
           <Button to="/issuer/issue" variant="gold" disabled={!authorized}>
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />

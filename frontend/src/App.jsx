@@ -6,7 +6,9 @@ import Landing from './pages/Landing'
 import Verify from './pages/Verify'
 import IssuerDashboard from './pages/IssuerDashboard'
 import IssueCredential from './pages/IssueCredential'
-import ComingSoon from './pages/ComingSoon'
+import IssuerCertificates from './pages/IssuerCertificates'
+import StudentDashboard from './pages/StudentDashboard'
+import CertificateDetail from './pages/CertificateDetail'
 
 export default function App() {
   return (
@@ -20,8 +22,9 @@ export default function App() {
             <Route path="/verify/wallet/:address" element={<Verify />} />
             <Route path="/issuer" element={<IssuerDashboard />} />
             <Route path="/issuer/issue" element={<IssueCredential />} />
-            {/* Built in Phase B. The link exists now so the dashboard is not broken. */}
-            <Route path="/issuer/certificates" element={<ComingSoon />} />
+            <Route path="/issuer/certificates" element={<IssuerCertificates />} />
+            <Route path="/student" element={<StudentDashboard />} />
+            <Route path="/certificates/:id" element={<CertificateDetail />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
