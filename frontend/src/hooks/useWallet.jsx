@@ -1,11 +1,18 @@
-// Wallet + demo role state for the whole app.
-// Connection is mocked until Phase E. Switching the demo role switches which
-// demo wallet is treated as connected.
+// Wallet state for the whole app.
+//
+// Demo mode: connection is faked and a role switcher picks which demo wallet is
+// "connected", so the issuer, student and verifier views can be shown on stage.
+// Chain mode: real MetaMask, and the role switcher is hidden.
 
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
-import { connectWallet, disconnectWallet } from '../services/credentialService'
-import { ADMIN_ADDRESS, ISSUER_ADDRESS, STUDENT_ADDRESS } from '../data/mockIssuers'
-import { CHAIN_ID } from '../utils/format'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  connectWallet,
+  disconnectWallet,
+  setConnectedWallet,
+} from '../services/credentialService'
+import { ADMIN_ADDRESS, ISSUER_ADDRESS, STUDENT_ADDRESS, getIssuerByAddress } from '../data/mockIssuers'
+import { CHAIN_ID, DEMO_MODE } from '../utils/network'
+import { shortAddress } from '../utils/format'
 
 const WalletContext = createContext(null)
 
@@ -37,22 +44,72 @@ export function getRole(roleId) {
   return DEMO_ROLES.find((r) => r.id === roleId) || DEMO_ROLES[0]
 }
 
+// In chain mode there is no demo role. Build a label from the wallet itself.
+function roleForAddress(address) {
+  if (!address) return { id: 'wallet', label: 'Wallet', name: 'Not connected', address: null }
+  const known = getIssuerByAddress(address)
+  return {
+    id: 'wallet',
+    label: 'Connected',
+    name: known ? known.name : shortAddress(address, 6, 4),
+    address,
+  }
+}
+
 export function WalletProvider({ children }) {
   const [roleId, setRoleId] = useState('issuer')
   const [wallet, setWallet] = useState(null)
   const [connecting, setConnecting] = useState(false)
+  const [error, setError] = useState('')
 
-  const role = getRole(roleId)
+  // Chain mode: follow MetaMask. Account switch updates the app, network
+  // switch reloads so every provider is rebuilt against the new chain.
+  useEffect(() => {
+    if (DEMO_MODE) return undefined
+    if (typeof window === 'undefined' || !window.ethereum) return undefined
+
+    const onAccountsChanged = (accounts) => {
+      if (!accounts || accounts.length === 0) {
+        setConnectedWallet(null)
+        setWallet(null)
+        return
+      }
+      setConnectedWallet(accounts[0])
+      setWallet({ address: accounts[0], chainId: CHAIN_ID })
+    }
+
+    const onChainChanged = () => {
+      window.location.reload()
+    }
+
+    window.ethereum.on('accountsChanged', onAccountsChanged)
+    window.ethereum.on('chainChanged', onChainChanged)
+
+    return () => {
+      window.ethereum.removeListener('accountsChanged', onAccountsChanged)
+      window.ethereum.removeListener('chainChanged', onChainChanged)
+    }
+  }, [])
 
   const connect = useCallback(
     async (targetRoleId) => {
-      const next = getRole(targetRoleId || roleId)
       setConnecting(true)
+      setError('')
       try {
-        const result = await connectWallet(next.address)
+        if (DEMO_MODE) {
+          const next = getRole(targetRoleId || roleId)
+          const result = await connectWallet(next.address)
+          setWallet(result)
+          setRoleId(next.id)
+          return result
+        }
+
+        const result = await connectWallet()
         setWallet(result)
-        setRoleId(next.id)
         return result
+      } catch (err) {
+        setError(err.message || 'Could not connect the wallet.')
+        throw err
       } finally {
         setConnecting(false)
       }
@@ -63,21 +120,24 @@ export function WalletProvider({ children }) {
   const disconnect = useCallback(() => {
     disconnectWallet()
     setWallet(null)
+    setError('')
   }, [])
 
-  // Switching role while connected reconnects as that demo wallet straight away.
+  // Demo mode only. Switching role reconnects as that demo wallet.
   const switchRole = useCallback(
     (nextRoleId) => {
+      if (!DEMO_MODE) return
       const next = getRole(nextRoleId)
       setRoleId(next.id)
       if (wallet) {
-        // Update the UI straight away, and keep the service in sync behind it.
         setWallet({ address: next.address, chainId: CHAIN_ID })
         connectWallet(next.address)
       }
     },
     [wallet]
   )
+
+  const role = DEMO_MODE ? getRole(roleId) : roleForAddress(wallet ? wallet.address : null)
 
   const value = useMemo(
     () => ({
@@ -86,13 +146,16 @@ export function WalletProvider({ children }) {
       chainId: wallet ? wallet.chainId : CHAIN_ID,
       isConnected: Boolean(wallet),
       connecting,
+      error,
       role,
       roleId,
       switchRole,
       connect,
       disconnect,
+      isDemoMode: DEMO_MODE,
+      adminAddress: ADMIN_ADDRESS,
     }),
-    [wallet, connecting, role, roleId, switchRole, connect, disconnect]
+    [wallet, connecting, error, role, roleId, switchRole, connect, disconnect]
   )
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>

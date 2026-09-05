@@ -1,6 +1,7 @@
-// The ONLY place that knows where data comes from.
-// Right now everything is mock. At Phase E the bodies get replaced with ethers v6
-// calls to SoulboundCertificate.sol. The function names and shapes stay the same.
+// The mock implementation of the service layer.
+// Used when VITE_DEMO_MODE=true, so the demo role switcher and the seeded
+// certificates still work on stage without a chain or a wallet.
+// The real implementation lives in chainService.js. Same function names.
 
 import {
   getStore,

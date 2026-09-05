@@ -120,6 +120,9 @@ export default function IssueCredential() {
       const result = await mintCertificate({ to: form.wallet, metadata }, setStage)
       setTxResult(result)
       toast('Credential minted')
+      if (result.storedInline) {
+        toast('Pinata key missing, metadata stored inline', 'warning')
+      }
     } catch (err) {
       setStage('error')
       setTxError(err.message || 'The transaction failed.')

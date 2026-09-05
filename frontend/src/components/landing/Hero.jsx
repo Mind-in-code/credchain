@@ -3,15 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Search } from 'lucide-react'
 import CertificateCard from '../CertificateCard'
 import { parseTokenId, isValidAddress } from '../../utils/format'
+import { DEMO_MODE } from '../../utils/network'
 
-const STATS = [
-  { value: '12', label: 'Credentials Issued' },
-  { value: '4', label: 'Whitelisted Issuers' },
-  { value: '10', label: 'Currently Valid' },
-  { value: '2', label: 'Revoked' },
-]
+export default function Hero({ certificate, stats }) {
+  const counts = stats || { issued: 0, issuers: 0, valid: 0, revoked: 0 }
+  const STATS = [
+    { value: String(counts.issued), label: 'Credentials Issued' },
+    { value: String(counts.issuers), label: 'Whitelisted Issuers' },
+    { value: String(counts.valid), label: 'Currently Valid' },
+    { value: String(counts.revoked), label: 'Revoked' },
+  ]
 
-export default function Hero({ certificate }) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [error, setError] = useState('')
@@ -85,7 +87,9 @@ export default function Hero({ certificate }) {
                 <span className="text-revoked-500">{error}</span>
               ) : (
                 <span className="text-verified-500">
-                  Try 1284 for a valid record, or 1290 for a revoked one
+                  {DEMO_MODE
+                    ? 'Try 1284 for a valid record, or 1290 for a revoked one'
+                    : 'Enter a credential ID like 1, or a full wallet address'}
                 </span>
               )}
               <span className="text-ink-muted">No wallet needed</span>
@@ -101,14 +105,16 @@ export default function Hero({ certificate }) {
             ))}
           </dl>
 
-          <p className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">
-            <span>Issuing institutions:</span>
-            <span className="text-ink-soft">Tech University</span>
-            <span className="text-line-strong">|</span>
-            <span className="text-ink-soft">Northbridge University</span>
-            <span className="text-line-strong">|</span>
-            <span className="text-ink-soft">Meridian Institute</span>
-          </p>
+          {DEMO_MODE && (
+            <p className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">
+              <span>Issuing institutions:</span>
+              <span className="text-ink-soft">Tech University</span>
+              <span className="text-line-strong">|</span>
+              <span className="text-ink-soft">Northbridge University</span>
+              <span className="text-line-strong">|</span>
+              <span className="text-ink-soft">Meridian Institute</span>
+            </p>
+          )}
         </div>
 
         <div className="animate-fade-in border border-line bg-white p-3 shadow-lift">

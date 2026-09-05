@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ShieldCheck } from 'lucide-react'
-import { CONTRACT_ADDRESS } from '../data/mockIssuers'
-import { NETWORK_NAME, shortAddress } from '../utils/format'
+import { CONTRACT_ADDRESS, NETWORK_NAME, shortAddress } from '../utils/format'
 
 export default function Footer() {
   return (

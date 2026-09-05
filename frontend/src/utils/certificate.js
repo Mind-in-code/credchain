@@ -18,6 +18,7 @@ export function certificateView(cert) {
     tokenURI: cert.tokenURI,
     cid: cert.cid || (cert.tokenURI || '').replace('ipfs://', ''),
     txHash: cert.txHash,
+    metadataUnavailable: Boolean(cert.metadataUnavailable),
     student: getAttr(m, 'student'),
     studentId: getAttr(m, 'studentId'),
     course: getAttr(m, 'course'),

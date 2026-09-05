@@ -4,6 +4,7 @@ import { Menu, ShieldCheck, X } from 'lucide-react'
 import NetworkBadge from './NetworkBadge'
 import DemoRoleSwitcher from './DemoRoleSwitcher'
 import WalletButton from './WalletButton'
+import { DEMO_MODE } from '../utils/network'
 
 const LINKS = [
   { to: '/', label: 'Home', end: true },
@@ -45,7 +46,7 @@ export default function Navbar() {
 
         <div className="hidden items-center gap-2.5 lg:flex">
           <NetworkBadge />
-          <DemoRoleSwitcher />
+          {DEMO_MODE && <DemoRoleSwitcher />}
           <Link
             to="/verify"
             className="inline-flex h-9 items-center rounded-sm bg-gold-500 px-3.5 font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-navy transition-colors hover:bg-gold-300"
@@ -83,7 +84,7 @@ export default function Navbar() {
           </div>
           <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4">
             <NetworkBadge />
-            <DemoRoleSwitcher />
+            {DEMO_MODE && <DemoRoleSwitcher />}
             <WalletButton />
           </div>
         </div>

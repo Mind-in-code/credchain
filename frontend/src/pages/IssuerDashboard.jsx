@@ -6,6 +6,7 @@ import {
   Copy,
   ExternalLink,
   FileText,
+  Ban,
   Plus,
   ScrollText,
   Search,
@@ -17,18 +18,23 @@ import StatCard from '../components/StatCard'
 import LoadingState from '../components/LoadingState'
 import EmptyState from '../components/EmptyState'
 import WalletModal from '../components/WalletModal'
+import Modal from '../components/Modal'
+import TransactionModal from '../components/TransactionModal'
+import { REVOKE_STAGES } from '../components/TransactionProgress'
 import { useToast } from '../components/Toast'
 import { useWallet } from '../hooks/useWallet'
-import { getIssuedBy, isIssuer } from '../services/credentialService'
+import { getIssuedBy, isIssuer, revokeCertificate } from '../services/credentialService'
 import { certificateView } from '../utils/certificate'
-import { CONTRACT_ADDRESS, getIssuerByAddress } from '../data/mockIssuers'
+import { getIssuerByAddress } from '../data/mockIssuers'
 import {
+  CONTRACT_ADDRESS,
   copyToClipboard,
   displayTokenId,
   explorerTxUrl,
   formatDate,
   shortAddress,
   shortHash,
+  HAS_EXPLORER,
   NETWORK_NAME,
 } from '../utils/format'
 
@@ -48,6 +54,14 @@ export default function IssuerDashboard() {
   const [modalOpen, setModalOpen] = useState(false)
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
+
+  // Revoke flow: confirm dialog, then the transaction modal.
+  const [toRevoke, setToRevoke] = useState(null)
+  const [revokeOpen, setRevokeOpen] = useState(false)
+  const [revokeStage, setRevokeStage] = useState(null)
+  const [revokeResult, setRevokeResult] = useState(null)
+  const [revokeError, setRevokeError] = useState('')
 
   const issuerProfile = getIssuerByAddress(address)
 
@@ -70,7 +84,7 @@ export default function IssuerDashboard() {
     return () => {
       active = false
     }
-  }, [isConnected, address])
+  }, [isConnected, address, reloadKey])
 
   const total = certificates.length
   const revoked = certificates.filter((c) => c.revoked).length
@@ -95,6 +109,28 @@ export default function IssuerDashboard() {
       })
       .sort((a, b) => b.tokenId - a.tokenId)
   }, [certificates, filter, search])
+
+  const confirmRevoke = async () => {
+    const cert = toRevoke
+    setToRevoke(null)
+    if (!cert) return
+
+    setRevokeError('')
+    setRevokeResult(null)
+    setRevokeStage('preparing')
+    setRevokeOpen(true)
+
+    try {
+      const result = await revokeCertificate(cert.tokenId, setRevokeStage)
+      setRevokeResult(result)
+      toast('Credential ' + displayTokenId(cert.tokenId) + ' revoked')
+      // Pull the list again so the row and the stat cards update.
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      setRevokeStage('error')
+      setRevokeError(err.message || 'The transaction failed.')
+    }
+  }
 
   const copyHash = async (value) => {
     const ok = await copyToClipboard(value)
@@ -404,15 +440,27 @@ export default function IssuerDashboard() {
                             >
                               Verify
                             </Link>
-                            <a
-                              href={explorerTxUrl(c.txHash)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 border border-line-strong bg-white px-2.5 py-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-ink-soft transition-colors hover:border-navy hover:text-ink"
-                            >
-                              Explorer
-                              <ExternalLink className="h-2.5 w-2.5" aria-hidden="true" />
-                            </a>
+                            {HAS_EXPLORER && (
+                              <a
+                                href={explorerTxUrl(c.txHash)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 border border-line-strong bg-white px-2.5 py-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-ink-soft transition-colors hover:border-navy hover:text-ink"
+                              >
+                                Explorer
+                                <ExternalLink className="h-2.5 w-2.5" aria-hidden="true" />
+                              </a>
+                            )}
+                            {!c.revoked && (
+                              <button
+                                type="button"
+                                onClick={() => setToRevoke(c)}
+                                className="inline-flex items-center gap-1 border border-revoked-100 bg-revoked-50 px-2.5 py-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-revoked-600 transition-colors hover:border-revoked-500"
+                              >
+                                <Ban className="h-2.5 w-2.5" aria-hidden="true" />
+                                Revoke
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -427,12 +475,75 @@ export default function IssuerDashboard() {
                 Showing {visible.length} of {total} credentials
               </p>
               <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">
-                Revocation is available in the full registry
+                Revoking is permanent and cannot be undone
               </p>
             </div>
           </section>
         </>
       )}
+
+      {/* Simple confirm before revoking. The full modal with reasons is Phase B. */}
+      <Modal
+        open={Boolean(toRevoke)}
+        onClose={() => setToRevoke(null)}
+        title="Revoke Credential"
+        size="md"
+      >
+        {toRevoke && (
+          <div>
+            <p className="text-sm leading-relaxed text-ink-soft">
+              Revoking marks this credential invalid on-chain. It stays in the recipient wallet but
+              will show as Revoked everywhere it is verified. This cannot be undone.
+            </p>
+
+            <dl className="mt-5 divide-y divide-line border border-line">
+              <div className="flex items-center justify-between gap-4 px-4 py-3">
+                <dt className="label">Token ID</dt>
+                <dd className="font-mono text-sm font-semibold text-gold-600">
+                  {displayTokenId(toRevoke.tokenId)}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-4 px-4 py-3">
+                <dt className="label">Recipient</dt>
+                <dd className="text-sm font-medium text-ink">{toRevoke.student || 'Unknown'}</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4 px-4 py-3">
+                <dt className="label">Credential</dt>
+                <dd className="text-sm text-ink">{toRevoke.course || 'Unknown'}</dd>
+              </div>
+            </dl>
+
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <Button variant="danger" onClick={confirmRevoke} className="flex-1">
+                <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+                Confirm Revocation
+              </Button>
+              <Button variant="secondary" onClick={() => setToRevoke(null)} className="flex-1">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <TransactionModal
+        open={revokeOpen}
+        onClose={() => setRevokeOpen(false)}
+        stage={revokeStage}
+        stages={REVOKE_STAGES}
+        result={revokeResult}
+        error={revokeError}
+        title="Revoking Credential"
+        successTitle="Credential Revoked"
+        successMessage="The credential is now marked invalid on-chain. It still sits in the recipient wallet."
+        actions={
+          revokeResult ? (
+            <Button variant="secondary" onClick={() => setRevokeOpen(false)} className="flex-1">
+              Close
+            </Button>
+          ) : null
+        }
+      />
     </div>
   )
 }

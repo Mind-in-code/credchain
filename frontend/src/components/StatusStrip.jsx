@@ -1,5 +1,4 @@
-import { CONTRACT_ADDRESS } from '../data/mockIssuers'
-import { NETWORK_NAME, shortAddress } from '../utils/format'
+import { CONTRACT_ADDRESS, NETWORK_NAME, shortAddress } from '../utils/format'
 
 // The thin mono strip under the navbar. Real project facts only.
 export default function StatusStrip() {

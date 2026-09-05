@@ -6,6 +6,7 @@ const ToastContext = createContext(null)
 const TONES = {
   success: { icon: Check, className: 'bg-verified-500 text-white' },
   error: { icon: TriangleAlert, className: 'bg-revoked-500 text-white' },
+  warning: { icon: TriangleAlert, className: 'bg-gold-500 text-navy' },
   info: { icon: Info, className: 'bg-navy text-cream-50' },
 }
 

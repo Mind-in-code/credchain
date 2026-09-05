@@ -17,12 +17,15 @@ import LoadingState from '../components/LoadingState'
 import { useToast } from '../components/Toast'
 import { getCertificate, getCertificatesOf } from '../services/credentialService'
 import { certificateView } from '../utils/certificate'
-import { CONTRACT_ADDRESS, getIssuerByAddress } from '../data/mockIssuers'
+import { getIssuerByAddress } from '../data/mockIssuers'
+import { DEMO_MODE } from '../utils/network'
 import {
+  CONTRACT_ADDRESS,
   copyToClipboard,
   displayTokenId,
   explorerAddressUrl,
   explorerTxUrl,
+  HAS_EXPLORER,
   formatDate,
   ipfsGatewayUrl,
   isValidAddress,
@@ -210,8 +213,12 @@ export default function Verify() {
             >
               {inputError ||
                 (tab === 'wallet'
-                  ? 'Try 0x3fD25B8c14E7a90D6b3F82Ce105A47dB9E60F2C1'
-                  : 'Try 1284 for a valid record, or 1290 for a revoked one')}
+                  ? DEMO_MODE
+                    ? 'Try 0x3fD25B8c14E7a90D6b3F82Ce105A47dB9E60F2C1'
+                    : 'Paste the student wallet address'
+                  : DEMO_MODE
+                    ? 'Try 1284 for a valid record, or 1290 for a revoked one'
+                    : 'Enter the credential ID, for example 1')}
             </p>
           </form>
         </div>
@@ -321,6 +328,18 @@ function SingleResult({ certificate, toast }) {
         </div>
       </div>
 
+      {certificate.metadataUnavailable && (
+        <div className="border border-gold-500 bg-gold-50 px-5 py-3.5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-gold-700">
+            Metadata unavailable
+          </p>
+          <p className="mt-1.5 text-sm text-ink-soft">
+            The on-chain record is genuine, but the certificate details could not be loaded from
+            storage. Names and course fields may be blank below.
+          </p>
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start">
         <div>
           <p className="label mb-3">Certificate Record</p>
@@ -376,15 +395,19 @@ function SingleResult({ certificate, toast }) {
               </RecordRow>
 
               <RecordRow label="Contract Address">
-                <a
-                  href={explorerAddressUrl(CONTRACT_ADDRESS)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 break-all font-mono text-[11px] text-ink hover:text-gold-600"
-                >
-                  {CONTRACT_ADDRESS}
-                  <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
-                </a>
+                {HAS_EXPLORER ? (
+                  <a
+                    href={explorerAddressUrl(CONTRACT_ADDRESS)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 break-all font-mono text-[11px] text-ink hover:text-gold-600"
+                  >
+                    {CONTRACT_ADDRESS}
+                    <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  </a>
+                ) : (
+                  <p className="break-all font-mono text-[11px] text-ink">{CONTRACT_ADDRESS}</p>
+                )}
               </RecordRow>
 
               <RecordRow label="Token ID">
@@ -414,34 +437,53 @@ function SingleResult({ certificate, toast }) {
                 )}
               </RecordRow>
 
-              <RecordRow label="IPFS Metadata">
-                <a
-                  href={ipfsGatewayUrl(certificate.tokenURI)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 break-all font-mono text-[11px] text-ink hover:text-gold-600"
-                >
-                  {certificate.cid}
-                  <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
-                </a>
-                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-ink-muted">
-                  Course, grade and date pinned to IPFS
-                </p>
+              <RecordRow label="Metadata">
+                {certificate.cid ? (
+                  <>
+                    <a
+                      href={ipfsGatewayUrl(certificate.tokenURI)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 break-all font-mono text-[11px] text-ink hover:text-gold-600"
+                    >
+                      {certificate.cid}
+                      <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    </a>
+                    <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-ink-muted">
+                      Course, grade and date pinned to IPFS
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-mono text-[11px] text-ink">Stored inline on-chain</p>
+                    <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-ink-muted">
+                      No IPFS key set, metadata is in the token URI
+                    </p>
+                  </>
+                )}
               </RecordRow>
 
               <RecordRow label="Transaction Hash">
-                <a
-                  href={explorerTxUrl(certificate.txHash)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 font-mono text-[11px] text-ink hover:text-gold-600"
-                >
-                  {shortHash(certificate.txHash)}
-                  <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
-                </a>
-                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-ink-muted">
-                  View on Etherscan
-                </p>
+                {HAS_EXPLORER ? (
+                  <>
+                    <a
+                      href={explorerTxUrl(certificate.txHash)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 font-mono text-[11px] text-ink hover:text-gold-600"
+                    >
+                      {shortHash(certificate.txHash)}
+                      <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    </a>
+                    <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-ink-muted">
+                      View on Etherscan
+                    </p>
+                  </>
+                ) : (
+                  <p className="break-all font-mono text-[11px] text-ink">
+                    {shortHash(certificate.txHash) || 'Not available'}
+                  </p>
+                )}
               </RecordRow>
             </dl>
 

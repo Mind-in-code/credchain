@@ -1,8 +1,16 @@
 // Small formatting helpers used across the app.
+// Network facts live in network.js and are re-exported here so the many
+// components that already import them keep working unchanged.
 
-export const EXPLORER_URL = 'https://sepolia.etherscan.io'
-export const NETWORK_NAME = 'Sepolia Testnet'
-export const CHAIN_ID = 11155111
+export {
+  NETWORK_NAME,
+  CHAIN_ID,
+  EXPLORER_URL,
+  HAS_EXPLORER,
+  CONTRACT_ADDRESS,
+  explorerTxUrl,
+  explorerAddressUrl,
+} from './network'
 
 export function shortAddress(address, lead = 6, tail = 4) {
   if (!address) return ''
@@ -42,14 +50,6 @@ export function todayISO() {
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
   return now.getFullYear() + '-' + month + '-' + day
-}
-
-export function explorerTxUrl(txHash) {
-  return EXPLORER_URL + '/tx/' + txHash
-}
-
-export function explorerAddressUrl(address) {
-  return EXPLORER_URL + '/address/' + address
 }
 
 export function ipfsGatewayUrl(tokenURI) {

@@ -1,7 +1,13 @@
 import { QRCodeSVG } from 'qrcode.react'
 import { ShieldCheck } from 'lucide-react'
-import { CONTRACT_ADDRESS, getSignatories } from '../data/mockIssuers'
-import { displayTokenId, formatDate, shortAddress, NETWORK_NAME } from '../utils/format'
+import { getSignatories } from '../data/mockIssuers'
+import {
+  CONTRACT_ADDRESS,
+  displayTokenId,
+  formatDate,
+  shortAddress,
+  NETWORK_NAME,
+} from '../utils/format'
 
 // The engraved certificate. Cream paper, gold rule border, gold corner brackets,
 // shield seal, signature block and a navy ledger strip along the bottom.
