@@ -19,7 +19,7 @@ Verifiable Credentials.
 
 ## Live demo
 
-**Live demo:** `<PASTE VERCEL URL HERE AFTER DEPLOY>`
+**Live demo:** `<https://credchain-henna.vercel.app/>`
 
 **Smart contract on Sepolia testnet, source code verified:**
 
