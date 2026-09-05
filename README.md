@@ -19,7 +19,7 @@ Verifiable Credentials.
 
 ## Live demo
 
-**Live demo:** `<https://credchain-henna.vercel.app/>`
+**Live demo:** [https://credchain-henna.vercel.app](https://credchain-henna.vercel.app)
 
 **Smart contract on Sepolia testnet, source code verified:**
 
@@ -38,19 +38,21 @@ Both were minted with a real `ipfs://` token URI pinned through Pinata.
 
 ## Screenshots
 
-<!-- Replace each line with the real image once you have taken the screenshots. -->
-
 | Landing page | Verify result |
 |---|---|
-| `![Landing page](docs/screenshots/landing.png)` | `![Verified credential](docs/screenshots/verify-valid.png)` |
+| ![Landing page](docs/screenshots/landing.png) | ![Verified credential](docs/screenshots/verify-valid.png) |
 
 | Revoked credential | Issuer dashboard |
 |---|---|
-| `![Revoked credential](docs/screenshots/verify-revoked.png)` | `![Issuer dashboard](docs/screenshots/issuer-dashboard.png)` |
+| ![Revoked credential](docs/screenshots/verify-revoked.png) | ![Issuer dashboard](docs/screenshots/issuer-dashboard.png) |
 
 | Issue credential form | Minting transaction |
 |---|---|
-| `![Issue a credential](docs/screenshots/issue-form.png)` | `![Transaction progress](docs/screenshots/minting.png)` |
+| ![Issue a credential](docs/screenshots/issue-form.png) | ![Transaction progress](docs/screenshots/transaction.png) |
+
+| Minting success with real IPFS CID |
+|---|
+| ![Minting success with real IPFS CID](docs/screenshots/mint-success.png) |
 
 ---
 
@@ -409,9 +411,10 @@ credchain/
 
 | Name | Role |
 |---|---|
-| Anushka | Frontend, contract integration, IPFS, deployment |
-| `<TEAMMATE NAME>` | Smart contract |
-| `<TEAMMATE NAME>` | `<ROLE>` |
+| Anushka Vora | Project lead, frontend, Sepolia and Vercel deployment |
+| Palak Soni | Smart contract (Solidity, OpenZeppelin, Hardhat tests) |
+| Simran Sharma | Contract integration, wallet flow, testing on Sepolia |
+| Sanjeevani Panigrahy | IPFS metadata via Pinata, UI design, demo video |
 
 ---
 
