@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Secrets. Never commit these.
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+
+# Hardhat build output
+artifacts/
+cache/
+
+# Test coverage
+coverage/
+
+# OS files
+.DS_Store

@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>On-Chain Verifiable Credentials</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+<style>
+  :root {
+    --indigo: #4f46e5;
+    --indigo-dark: #3730a3;
+    --bg: #f6f7fb;
+    --card: #ffffff;
+    --border: #e2e4ee;
+    --text: #1e1e2e;
+    --muted: #6b7280;
+    --green: #15803d;
+    --green-bg: #ecfdf3;
+    --red: #b91c1c;
+    --red-bg: #fef2f2;
+    --amber-bg: #fffbeb;
+    --amber-border: #fde68a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 24px 20px 0;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--indigo);
+    color: white;
+    font-weight: 700;
+    font-size: 14px;
+    margin-right: 10px;
+  }
+  h1 {
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    margin: 0 0 2px;
+    color: var(--indigo-dark);
+  }
+  .domain {
+    color: var(--indigo);
+    font-style: italic;
+    font-size: 14px;
+    margin: 0 0 20px 38px;
+  }
+  .container { max-width: 720px; margin: 0 auto; padding: 0 20px 60px; }
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    padding: 10px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+  }
+  .tab.active { color: var(--indigo); border-bottom-color: var(--indigo); }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 12px; color: var(--indigo-dark); }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input, textarea {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    font-family: inherit;
+  }
+  button {
+    background: var(--indigo);
+    color: white;
+    border: none;
+    border-radius: 7px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 12px;
+  }
+  button:hover { background: var(--indigo-dark); }
+  button:disabled { background: #b8bcd9; cursor: not-allowed; }
+  button.secondary { background: white; color: var(--indigo); border: 1px solid var(--indigo); }
+  button.secondary:hover { background: #eef0ff; }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+  .status {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 7px;
+    font-size: 13px;
+    display: none;
+    word-break: break-word;
+  }
+  .status.show { display: block; }
+  .status.info { background: #eef2ff; color: var(--indigo-dark); }
+  .status.error { background: var(--red-bg); color: var(--red); }
+  .status.ok { background: var(--green-bg); color: var(--green); }
+  .wallet-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    font-size: 13px;
+  }
+  .cert-result {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 14px;
+  }
+  .cert-result.valid { border-color: #bbf7d0; background: var(--green-bg); }
+  .cert-result.invalid { border-color: #fecaca; background: var(--red-bg); }
+  .cert-status-line { font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+  .cert-status-line.valid { color: var(--green); }
+  .cert-status-line.invalid { color: var(--red); }
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; font-size: 13px; }
+  .kv .k { color: var(--muted); }
+  .kv .v { word-break: break-all; }
+  .hint {
+    background: var(--amber-bg);
+    border: 1px solid var(--amber-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    color: #92400e;
+    margin-bottom: 16px;
+  }
+  .cert-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .cert-list-item:last-child { border-bottom: none; }
+  .pill {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .pill.valid { background: var(--green-bg); color: var(--green); }
+  .pill.invalid { background: var(--red-bg); color: var(--red); }
+  a { color: var(--indigo); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="badge">2</span>On-Chain Verifiable Credentials</h1>
+  <p class="domain">Domain: Identity / Education — Soulbound Certificates</p>
+</header>
+
+<div class="container">
+
+  <div class="hint">
+    ⚙️ Before this works: deploy <code>SoulboundCertificate.sol</code> (see the
+    Hardhat project) and paste the deployed contract address into
+    <code>CONTRACT_ADDRESS</code> near the top of this file's script tag.
+    Currently set to: <code id="addr-display">not set</code>.
+  </div>
+
+  <div class="wallet-bar">
+    <span id="wallet-status">Wallet not connected</span>
+    <button id="connect-btn" style="margin-top:0;">Connect Wallet</button>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="verify">🔍 Public Verification</div>
+    <div class="tab" data-tab="dashboard">🏫 Issuer Dashboard</div>
+    <div class="tab" data-tab="admin">👑 Admin (Owner)</div>
+  </div>
+
+  <!-- ============ VERIFY PANEL ============ -->
+  <div class="panel active" id="panel-verify">
+    <div class="card">
+      <h2>Look up by Token ID</h2>
+      <label>Certificate token ID</label>
+      <input type="number" id="verify-token-id" placeholder="e.g. 1" />
+      <button id="verify-token-btn">Verify Certificate</button>
+      <div id="verify-token-status" class="status"></div>
+      <div id="verify-token-result"></div>
+    </div>
+
+    <div class="card">
+      <h2>Look up by Wallet Address</h2>
+      <label>Student wallet address</label>
+      <input type="text" id="verify-wallet" placeholder="0x..." />
+      <button id="verify-wallet-btn">Find Certificates</button>
+      <div id="verify-wallet-status" class="status"></div>
+      <div id="verify-wallet-result"></div>
+    </div>
+  </div>
+
+  <!-- ============ ISSUER DASHBOARD PANEL ============ -->
+  <div class="panel" id="panel-dashboard">
+    <div class="card">
+      <h2>Mint a Certificate</h2>
+      <p style="font-size:12.5px;color:var(--muted);margin:0 0 8px;">
+        Requires your connected wallet to be a whitelisted issuer.
+      </p>
+      <label>Student wallet address</label>
+      <input type="text" id="mint-to" placeholder="0x..." />
+      <label>Metadata IPFS URI (student name, course, date, issuer JSON)</label>
+      <input type="text" id="mint-uri" placeholder="ipfs://bafy.../metadata.json" />
+      <button id="mint-btn">Mint Certificate</button>
+      <div id="mint-status" class="status"></div>
+    </div>
+
+    <div class="card">
+      <h2>Revoke a Certificate</h2>
+      <p style="font-size:12.5px;color:var(--muted);margin:0 0 8px;">
+        Only the original issuer (or contract owner) can revoke. This flags the
+        certificate invalid — it stays in the student's wallet (soulbound).
+      </p>
+      <label>Token ID to revoke</label>
+      <input type="number" id="revoke-token-id" placeholder="e.g. 1" />
+      <button id="revoke-btn" style="background:var(--red);">Revoke Certificate</button>
+      <div id="revoke-status" class="status"></div>
+    </div>
+
+    <div class="card">
+      <h2>Am I an Issuer?</h2>
+      <button id="check-issuer-btn" class="secondary">Check Connected Wallet</button>
+      <div id="issuer-check-status" class="status"></div>
+    </div>
+  </div>
+
+  <!-- ============ ADMIN PANEL ============ -->
+  <div class="panel" id="panel-admin">
+    <div class="card">
+      <h2>Add Issuer</h2>
+      <p style="font-size:12.5px;color:var(--muted);margin:0 0 8px;">
+        Owner only. Whitelists an address (e.g. a university registrar or
+        course platform account) to mint certificates.
+      </p>
+      <label>Issuer wallet address</label>
+      <input type="text" id="add-issuer-addr" placeholder="0x..." />
+      <button id="add-issuer-btn">Add Issuer</button>
+      <div id="add-issuer-status" class="status"></div>
+    </div>
+
+    <div class="card">
+      <h2>Remove Issuer</h2>
+      <label>Issuer wallet address</label>
+      <input type="text" id="remove-issuer-addr" placeholder="0x..." />
+      <button id="remove-issuer-btn" style="background:var(--red);">Remove Issuer</button>
+      <div id="remove-issuer-status" class="status"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// =========================================================================
+// CONFIG — paste your deployed contract address here after running
+// `npm run deploy:sepolia` (or your chosen network).
+// =========================================================================
+const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+const CONTRACT_ABI = [
+  "function addIssuer(address issuer) external",
+  "function removeIssuer(address issuer) external",
+  "function isIssuer(address) view returns (bool)",
+  "function mintCertificate(address to, string tokenURI_) external returns (uint256)",
+  "function revokeCertificate(uint256 tokenId) external",
+  "function verifyCertificate(uint256 tokenId) view returns (bool valid, address owner_, address issuer, string tokenURI_, uint256 issuedAt, bool revoked)",
+  "function getCertificatesOf(address wallet) view returns (uint256[])",
+  "function owner() view returns (address)",
+  "function name() view returns (string)",
+  "function symbol() view returns (string)",
+  "event CertificateMinted(uint256 indexed tokenId, address indexed to, address indexed issuer, string tokenURI)",
+  "event CertificateRevoked(uint256 indexed tokenId, address indexed issuer)"
+];
+
+document.getElementById("addr-display").textContent = CONTRACT_ADDRESS;
+
+let provider, signer, contract, readOnlyContract;
+
+// A read-only fallback provider lets verification work even without a
+// connected wallet — anyone should be able to verify a certificate.
+function getReadProvider() {
+  if (provider) return provider;
+  // Falls back to whatever injected provider exists, read-only.
+  if (window.ethereum) return new ethers.BrowserProvider(window.ethereum);
+  return null;
+}
+
+function getReadContract() {
+  const p = getReadProvider();
+  if (!p) return null;
+  return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, p);
+}
+
+async function connectWallet() {
+  if (!window.ethereum) {
+    alert("No wallet found. Install MetaMask (or similar) to use the issuer dashboard.");
+    return;
+  }
+  provider = new ethers.BrowserProvider(window.ethereum);
+  await provider.send("eth_requestAccounts", []);
+  signer = await provider.getSigner();
+  contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+  const address = await signer.getAddress();
+  document.getElementById("wallet-status").textContent =
+    `Connected: ${address.slice(0, 6)}...${address.slice(-4)}`;
+  document.getElementById("connect-btn").textContent = "Reconnect";
+}
+
+document.getElementById("connect-btn").addEventListener("click", connectWallet);
+
+// --- Tabs ---
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
+  });
+});
+
+function setStatus(elId, message, type) {
+  const el = document.getElementById(elId);
+  el.textContent = message;
+  el.className = "status show " + type;
+}
+
+function formatDate(unixTs) {
+  const n = Number(unixTs);
+  if (!n) return "unknown";
+  return new Date(n * 1000).toLocaleString();
+}
+
+// --- Verify by token ID ---
+document.getElementById("verify-token-btn").addEventListener("click", async () => {
+  const tokenId = document.getElementById("verify-token-id").value.trim();
+  const resultEl = document.getElementById("verify-token-result");
+  resultEl.innerHTML = "";
+  if (!tokenId) return setStatus("verify-token-status", "Enter a token ID.", "error");
+
+  const c = getReadContract();
+  if (!c) return setStatus("verify-token-status", "Connect a wallet or install MetaMask to read on-chain data.", "error");
+
+  setStatus("verify-token-status", "Looking up...", "info");
+  try {
+    const [valid, owner_, issuer, tokenURI_, issuedAt, revoked] = await c.verifyCertificate(tokenId);
+    document.getElementById("verify-token-status").classList.remove("show");
+    resultEl.innerHTML = `
+      <div class="cert-result ${valid ? "valid" : "invalid"}">
+        <div class="cert-status-line ${valid ? "valid" : "invalid"}">
+          ${valid ? "✅ VALID CERTIFICATE" : "❌ REVOKED / INVALID"}
+        </div>
+        <div class="kv">
+          <div class="k">Token ID</div><div class="v">${tokenId}</div>
+          <div class="k">Owner</div><div class="v">${owner_}</div>
+          <div class="k">Issuer</div><div class="v">${issuer}</div>
+          <div class="k">Metadata</div><div class="v"><a href="${tokenURI_}" target="_blank" rel="noopener">${tokenURI_}</a></div>
+          <div class="k">Issued</div><div class="v">${formatDate(issuedAt)}</div>
+        </div>
+      </div>`;
+  } catch (err) {
+    setStatus("verify-token-status", "No certificate found with that token ID.", "error");
+  }
+});
+
+// --- Verify by wallet ---
+document.getElementById("verify-wallet-btn").addEventListener("click", async () => {
+  const wallet = document.getElementById("verify-wallet").value.trim();
+  const resultEl = document.getElementById("verify-wallet-result");
+  resultEl.innerHTML = "";
+  if (!ethers.isAddress(wallet)) return setStatus("verify-wallet-status", "Enter a valid wallet address.", "error");
+
+  const c = getReadContract();
+  if (!c) return setStatus("verify-wallet-status", "Connect a wallet or install MetaMask to read on-chain data.", "error");
+
+  setStatus("verify-wallet-status", "Looking up...", "info");
+  try {
+    const ids = await c.getCertificatesOf(wallet);
+    if (ids.length === 0) {
+      setStatus("verify-wallet-status", "No certificates found for this wallet.", "info");
+      return;
+    }
+    document.getElementById("verify-wallet-status").classList.remove("show");
+    const rows = await Promise.all(ids.map(async (id) => {
+      const [valid] = await c.verifyCertificate(id);
+      return { id: id.toString(), valid };
+    }));
+    resultEl.innerHTML = `<div class="cert-result valid">` + rows.map(r => `
+      <div class="cert-list-item">
+        <span>Token #${r.id}</span>
+        <span class="pill ${r.valid ? "valid" : "invalid"}">${r.valid ? "VALID" : "REVOKED"}</span>
+      </div>`).join("") + `</div>`;
+  } catch (err) {
+    setStatus("verify-wallet-status", "Lookup failed: " + (err.shortMessage || err.message), "error");
+  }
+});
+
+// --- Mint ---
+document.getElementById("mint-btn").addEventListener("click", async () => {
+  if (!contract) return setStatus("mint-status", "Connect your wallet first.", "error");
+  const to = document.getElementById("mint-to").value.trim();
+  const uri = document.getElementById("mint-uri").value.trim();
+  if (!ethers.isAddress(to)) return setStatus("mint-status", "Enter a valid student wallet address.", "error");
+  if (!uri) return setStatus("mint-status", "Enter the metadata IPFS URI.", "error");
+
+  setStatus("mint-status", "Sending transaction...", "info");
+  try {
+    const tx = await contract.mintCertificate(to, uri);
+    setStatus("mint-status", "Waiting for confirmation...", "info");
+    const receipt = await tx.wait();
+    setStatus("mint-status", `✅ Minted! Tx: ${receipt.hash}`, "ok");
+  } catch (err) {
+    setStatus("mint-status", "Mint failed: " + (err.shortMessage || err.message), "error");
+  }
+});
+
+// --- Revoke ---
+document.getElementById("revoke-btn").addEventListener("click", async () => {
+  if (!contract) return setStatus("revoke-status", "Connect your wallet first.", "error");
+  const tokenId = document.getElementById("revoke-token-id").value.trim();
+  if (!tokenId) return setStatus("revoke-status", "Enter a token ID.", "error");
+
+  setStatus("revoke-status", "Sending transaction...", "info");
+  try {
+    const tx = await contract.revokeCertificate(tokenId);
+    setStatus("revoke-status", "Waiting for confirmation...", "info");
+    const receipt = await tx.wait();
+    setStatus("revoke-status", `✅ Revoked. Tx: ${receipt.hash}`, "ok");
+  } catch (err) {
+    setStatus("revoke-status", "Revoke failed: " + (err.shortMessage || err.message), "error");
+  }
+});
+
+// --- Check issuer status ---
+document.getElementById("check-issuer-btn").addEventListener("click", async () => {
+  if (!signer) return setStatus("issuer-check-status", "Connect your wallet first.", "error");
+  try {
+    const address = await signer.getAddress();
+    const readContract = getReadContract();
+    const result = await readContract.isIssuer(address);
+    setStatus("issuer-check-status",
+      result ? `✅ ${address} is a whitelisted issuer.` : `❌ ${address} is NOT a whitelisted issuer.`,
+      result ? "ok" : "error");
+  } catch (err) {
+    setStatus("issuer-check-status", "Check failed: " + (err.shortMessage || err.message), "error");
+  }
+});
+
+// --- Admin: add issuer ---
+document.getElementById("add-issuer-btn").addEventListener("click", async () => {
+  if (!contract) return setStatus("add-issuer-status", "Connect your wallet first.", "error");
+  const addr = document.getElementById("add-issuer-addr").value.trim();
+  if (!ethers.isAddress(addr)) return setStatus("add-issuer-status", "Enter a valid address.", "error");
+  setStatus("add-issuer-status", "Sending transaction...", "info");
+  try {
+    const tx = await contract.addIssuer(addr);
+    await tx.wait();
+    setStatus("add-issuer-status", `✅ ${addr} added as issuer.`, "ok");
+  } catch (err) {
+    setStatus("add-issuer-status", "Failed: " + (err.shortMessage || err.message), "error");
+  }
+});
+
+// --- Admin: remove issuer ---
+document.getElementById("remove-issuer-btn").addEventListener("click", async () => {
+  if (!contract) return setStatus("remove-issuer-status", "Connect your wallet first.", "error");
+  const addr = document.getElementById("remove-issuer-addr").value.trim();
+  if (!ethers.isAddress(addr)) return setStatus("remove-issuer-status", "Enter a valid address.", "error");
+  setStatus("remove-issuer-status", "Sending transaction...", "info");
+  try {
+    const tx = await contract.removeIssuer(addr);
+    await tx.wait();
+    setStatus("remove-issuer-status", `✅ ${addr} removed as issuer.`, "ok");
+  } catch (err) {
+    setStatus("remove-issuer-status", "Failed: " + (err.shortMessage || err.message), "error");
+  }
+});
+</script>
+</body>
+</html>

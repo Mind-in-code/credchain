@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-cream text-ink font-sans antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-gold-500 ring-offset-2 ring-offset-cream;
+  }
+}
+
+@layer components {
+  /* White panel on the cream page. Thin single pixel border, almost no shadow. */
+  .card {
+    @apply rounded-sm border border-line bg-white shadow-card;
+  }
+
+  /* Uppercase mono label used for every field name in the product. */
+  .label {
+    @apply font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted;
+  }
+
+  .label-gold {
+    @apply font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-gold-600;
+  }
+
+  /* Small bordered tag, e.g. "ACADEMIC ATTESTATION" style eyebrows. */
+  .chip {
+    @apply inline-flex items-center gap-1.5 border border-line-strong bg-cream-50 px-2.5 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-ink-soft;
+  }
+
+  .rule {
+    @apply border-t border-line;
+  }
+
+  .dot-grid {
+    background-image: radial-gradient(circle, rgb(201 190 165) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+}
