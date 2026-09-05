@@ -38,7 +38,7 @@ export default {
           50: '#EDF6F1',
           100: '#D8ECE1',
           500: '#1F7A4D',
-          600: '#186139',
+          600: '#155a34',
         },
         revoked: {
           DEFAULT: '#A32E2E',
