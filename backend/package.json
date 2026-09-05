@@ -6,8 +6,8 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
-    "deploy:mumbai": "hardhat run scripts/deploy.js --network polygonMumbai",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "export-abi": "node scripts/exportAbi.js",
     "node": "hardhat node"
   },
   "devDependencies": {

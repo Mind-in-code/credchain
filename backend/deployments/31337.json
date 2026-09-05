@@ -1,0 +1,9 @@
+{
+  "network": "localhost",
+  "chainId": 31337,
+  "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "deployBlock": 1,
+  "name": "CredChain Certificate",
+  "symbol": "CRED",
+  "deployedAt": "2026-09-05T12:10:22.807Z"
+}
