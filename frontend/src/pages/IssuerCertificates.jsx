@@ -11,6 +11,7 @@ import {
   Search,
   TriangleAlert,
   Wallet,
+  WifiOff,
 } from 'lucide-react'
 import Button from '../components/Button'
 import LoadingState from '../components/LoadingState'
@@ -46,6 +47,7 @@ export default function IssuerCertificates() {
   const [certificates, setCertificates] = useState([])
   const [walletModalOpen, setWalletModalOpen] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const [loadError, setLoadError] = useState('')
 
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -70,12 +72,20 @@ export default function IssuerCertificates() {
     let active = true
     setLoading(true)
 
-    Promise.all([isIssuer(address), getIssuedBy(address)]).then(([allowed, issued]) => {
-      if (!active) return
-      setAuthorized(allowed)
-      setCertificates(issued.map(certificateView))
-      setLoading(false)
-    })
+    setLoadError('')
+    Promise.all([isIssuer(address), getIssuedBy(address)])
+      .then(([allowed, issued]) => {
+        if (!active) return
+        setAuthorized(allowed)
+        setCertificates(issued.map(certificateView))
+        setLoading(false)
+      })
+      .catch((err) => {
+        if (!active) return
+        setCertificates([])
+        setLoadError(err.message || 'Could not reach the blockchain.')
+        setLoading(false)
+      })
 
     return () => {
       active = false
@@ -204,6 +214,19 @@ export default function IssuerCertificates() {
 
       {loading ? (
         <LoadingState text="Loading issued credentials" />
+      ) : loadError ? (
+        <div className="mt-8">
+          <EmptyState
+            icon={WifiOff}
+            title="Could not reach the blockchain"
+            description={loadError}
+            action={
+              <Button onClick={() => setReloadKey((k) => k + 1)} variant="secondary">
+                Try Again
+              </Button>
+            }
+          />
+        </div>
       ) : (
         <section className="card mt-8">
           <div className="flex flex-col gap-3 border-b border-line p-4 lg:flex-row lg:items-center lg:justify-between">

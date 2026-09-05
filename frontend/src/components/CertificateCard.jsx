@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react'
-import { ShieldCheck } from 'lucide-react'
+import { QrCode, ShieldCheck } from 'lucide-react'
 import { getSignatories } from '../data/mockIssuers'
 import {
   CONTRACT_ADDRESS,
@@ -11,7 +11,12 @@ import {
 
 // The engraved certificate. Cream paper, gold rule border, gold corner brackets,
 // shield seal, signature block and a navy ledger strip along the bottom.
-export default function CertificateCard({ certificate, size = 'lg', className = '' }) {
+export default function CertificateCard({
+  certificate,
+  size = 'lg',
+  className = '',
+  onQrClick,
+}) {
   if (!certificate) return null
 
   const isSmall = size === 'sm'
@@ -217,16 +222,32 @@ export default function CertificateCard({ certificate, size = 'lg', className = 
           </dl>
 
           <div className="shrink-0 text-center">
-            <div className="bg-white p-1.5">
-              <QRCodeSVG value={verifyUrl} size={isSmall ? 44 : 62} level="M" />
-            </div>
+            {onQrClick ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onQrClick(certificate)
+                }}
+                aria-label={'Open the verification QR for credential ' + certificate.tokenId}
+                className="group block bg-white p-1.5 transition-opacity hover:opacity-80"
+              >
+                <QRCodeSVG value={verifyUrl} size={isSmall ? 44 : 62} level="M" />
+              </button>
+            ) : (
+              <div className="bg-white p-1.5">
+                <QRCodeSVG value={verifyUrl} size={isSmall ? 44 : 62} level="M" />
+              </div>
+            )}
             <p
               className={
-                'mt-1.5 font-mono uppercase tracking-[0.12em] text-cream-100/50 ' +
+                'mt-1.5 inline-flex items-center gap-1 font-mono uppercase tracking-[0.12em] text-cream-100/50 ' +
                 (isSmall ? 'text-[7px]' : 'text-[8px]')
               }
             >
-              Scan to verify
+              {onQrClick && <QrCode className="h-2.5 w-2.5" aria-hidden="true" />}
+              {onQrClick ? 'Tap to enlarge' : 'Scan to verify'}
             </p>
           </div>
         </div>

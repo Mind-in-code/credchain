@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { QRCodeCanvas } from 'qrcode.react'
+import jsQR from 'jsqr'
 import {
   CircleCheck,
   CircleSlash,
@@ -8,12 +9,17 @@ import {
   Download,
   ExternalLink,
   FileQuestion,
+  QrCode,
+  ScanLine,
   Search,
   Share2,
+  Upload,
+  WifiOff,
 } from 'lucide-react'
 import Button from '../components/Button'
 import CertificateCard from '../components/CertificateCard'
 import LoadingState from '../components/LoadingState'
+import QRModal from '../components/QRModal'
 import { useToast } from '../components/Toast'
 import { getCertificate, getCertificatesOf } from '../services/credentialService'
 import { certificateView } from '../utils/certificate'
@@ -38,6 +44,7 @@ import {
 const TABS = [
   { id: 'wallet', label: 'Wallet Address' },
   { id: 'id', label: 'Credential ID' },
+  { id: 'scan', label: 'Scan QR' },
 ]
 
 export default function Verify() {
@@ -52,6 +59,8 @@ export default function Verify() {
   // result: null | { kind: 'single', certificate } | { kind: 'list', certificates, address }
   //         | { kind: 'notFound', message }
   const [result, setResult] = useState(null)
+  // Scan QR tab only: what the last decoded image contained.
+  const [scanNotice, setScanNotice] = useState(null)
 
   const runById = useCallback(async (rawValue) => {
     const tokenId = parseTokenId(rawValue)
@@ -61,7 +70,14 @@ export default function Verify() {
     }
     setLoading(true)
     setResult(null)
-    const cert = await getCertificate(tokenId)
+    let cert
+    try {
+      cert = await getCertificate(tokenId)
+    } catch (err) {
+      setLoading(false)
+      setResult({ kind: 'chainError', message: err.message || 'Could not reach the blockchain.' })
+      return
+    }
     setLoading(false)
     if (!cert) {
       setResult({
@@ -76,8 +92,15 @@ export default function Verify() {
   const runByWallet = useCallback(async (walletAddress) => {
     setLoading(true)
     setResult(null)
-    const tokenIds = await getCertificatesOf(walletAddress)
-    const certs = await Promise.all(tokenIds.map((t) => getCertificate(t)))
+    let certs
+    try {
+      const tokenIds = await getCertificatesOf(walletAddress)
+      certs = await Promise.all(tokenIds.map((t) => getCertificate(t)))
+    } catch (err) {
+      setLoading(false)
+      setResult({ kind: 'chainError', message: err.message || 'Could not reach the blockchain.' })
+      return
+    }
     setLoading(false)
 
     const views = certs.filter(Boolean).map(certificateView)
@@ -97,6 +120,7 @@ export default function Verify() {
 
   // /verify/:id and /verify/wallet/:address run automatically. QR codes point here.
   useEffect(() => {
+    setScanNotice(null)
     if (id) {
       setTab('id')
       setQuery(String(id))
@@ -138,10 +162,56 @@ export default function Verify() {
     navigate('/verify/' + tokenId)
   }
 
+  // A scanned QR holds a full /verify/<id> URL, but accept a bare id or an
+  // address too so a hand-made code still works.
+  // The result is looked up in place: the tab does not change and the URL does
+  // not move, so another QR can be tried straight away.
+  const onScanDecoded = (text) => {
+    const value = String(text || '').trim()
+    if (!value) return
+
+    setScanNotice(null)
+
+    const idMatch = value.match(/\/verify\/(\d+)/)
+    if (idMatch) {
+      const tokenId = Number(idMatch[1])
+      setScanNotice({ kind: 'id', tokenId })
+      runById(tokenId)
+      return
+    }
+
+    const walletMatch = value.match(/\/verify\/wallet\/(0x[a-fA-F0-9]{40})/)
+    if (walletMatch) {
+      setScanNotice({ kind: 'wallet', address: walletMatch[1] })
+      runByWallet(walletMatch[1])
+      return
+    }
+
+    if (isValidAddress(value)) {
+      setScanNotice({ kind: 'wallet', address: value })
+      runByWallet(value)
+      return
+    }
+
+    const tokenId = parseTokenId(value)
+    if (tokenId !== null) {
+      setScanNotice({ kind: 'id', tokenId })
+      runById(tokenId)
+      return
+    }
+
+    setScanNotice({
+      kind: 'error',
+      message: 'That QR code does not point at a CredChain credential.',
+    })
+  }
+
   const switchTab = (nextTab) => {
     setTab(nextTab)
     setInputError('')
     setQuery('')
+    // The scan notice belongs to the Scan QR tab only.
+    if (nextTab !== 'scan') setScanNotice(null)
   }
 
   return (
@@ -183,43 +253,52 @@ export default function Verify() {
               ))}
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <div className="relative flex-1">
-                <Search
-                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-muted"
-                  aria-hidden="true"
-                />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  aria-label={tab === 'wallet' ? 'Wallet address' : 'Credential ID'}
-                  placeholder={tab === 'wallet' ? '0x3fD2...' : '1284'}
-                  className={
-                    'h-11 w-full rounded-sm border bg-cream-50 pl-9 pr-3 font-mono text-sm text-ink placeholder:text-ink-muted focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy ' +
-                    (inputError ? 'border-revoked-500' : 'border-line-strong')
-                  }
-                />
-              </div>
-              <Button type="submit" size="lg" className="sm:w-auto">
-                Verify Credential
-              </Button>
-            </div>
+            {tab === 'scan' ? (
+              <>
+                <ScanPanel onDecoded={onScanDecoded} />
+                <ScanNotice notice={scanNotice} result={result} loading={loading} />
+              </>
+            ) : (
+              <>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="relative flex-1">
+                    <Search
+                      className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-muted"
+                      aria-hidden="true"
+                    />
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      aria-label={tab === 'wallet' ? 'Wallet address' : 'Credential ID'}
+                      placeholder={tab === 'wallet' ? '0x3fD2...' : '1284'}
+                      className={
+                        'h-11 w-full rounded-sm border bg-cream-50 pl-9 pr-3 font-mono text-sm text-ink placeholder:text-ink-muted focus:border-navy focus:outline-none focus:ring-1 focus:ring-navy ' +
+                        (inputError ? 'border-revoked-500' : 'border-line-strong')
+                      }
+                    />
+                  </div>
+                  <Button type="submit" size="lg" className="sm:w-auto">
+                    Verify Credential
+                  </Button>
+                </div>
 
-            <p
-              className={
-                'mt-3 font-mono text-[10px] uppercase tracking-[0.12em] ' +
-                (inputError ? 'text-revoked-500' : 'text-ink-muted')
-              }
-            >
-              {inputError ||
-                (tab === 'wallet'
-                  ? DEMO_MODE
-                    ? 'Try 0x3fD25B8c14E7a90D6b3F82Ce105A47dB9E60F2C1'
-                    : 'Paste the student wallet address'
-                  : DEMO_MODE
-                    ? 'Try 1284 for a valid record, or 1290 for a revoked one'
-                    : 'Enter the credential ID, for example 1')}
-            </p>
+                <p
+                  className={
+                    'mt-3 font-mono text-[10px] uppercase tracking-[0.12em] ' +
+                    (inputError ? 'text-revoked-500' : 'text-ink-muted')
+                  }
+                >
+                  {inputError ||
+                    (tab === 'wallet'
+                      ? DEMO_MODE
+                        ? 'Try 0x3fD25B8c14E7a90D6b3F82Ce105A47dB9E60F2C1'
+                        : 'Paste the student wallet address'
+                      : DEMO_MODE
+                        ? 'Try 1284 for a valid record, or 1290 for a revoked one'
+                        : 'Enter the credential ID, for example 1')}
+                </p>
+              </>
+            )}
           </form>
         </div>
       </section>
@@ -238,13 +317,180 @@ export default function Verify() {
         {!loading && result && result.kind === 'notFound' && (
           <NotFoundResult message={result.message} />
         )}
+
+        {!loading && result && result.kind === 'chainError' && (
+          <ChainErrorResult message={result.message} />
+        )}
       </div>
+    </div>
+  )
+}
+
+// The strip under the Scan QR panel. Reports what the decoded image contained,
+// then the normal result panel renders below it on this same tab.
+function ScanNotice({ notice, result, loading }) {
+  if (!notice) return null
+
+  if (notice.kind === 'error') {
+    return (
+      <p className="mt-3 border border-revoked-100 bg-revoked-50 px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-revoked-600">
+        {notice.message}
+      </p>
+    )
+  }
+
+  const found = !loading && result && (result.kind === 'single' || result.kind === 'list')
+  const missing = !loading && result && result.kind === 'notFound'
+
+  const label =
+    notice.kind === 'id'
+      ? 'Credential ' + displayTokenId(notice.tokenId)
+      : 'Wallet ' + shortAddress(notice.address)
+
+  if (loading) {
+    return (
+      <p className="mt-3 border border-line-strong bg-cream-50 px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-soft">
+        QR decoded, checking {label}
+      </p>
+    )
+  }
+
+  if (missing) {
+    return (
+      <p className="mt-3 border border-gold-500 bg-gold-50 px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-gold-700">
+        QR decoded, but no credential exists for {label}
+      </p>
+    )
+  }
+
+  if (!found) return null
+
+  return (
+    <p className="mt-3 flex items-center gap-2 border border-verified-500 bg-verified-50 px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-verified-600">
+      <CircleCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      {notice.kind === 'id'
+        ? 'QR decoded, credential ' + displayTokenId(notice.tokenId) + ' found'
+        : 'QR decoded, ' + label + ' found'}
+    </p>
+  )
+}
+
+// Camera scanning is not implemented, but an uploaded QR image is decoded for
+// real with jsQR, so a screenshot or a photo of a certificate works.
+function ScanPanel({ onDecoded }) {
+  const [status, setStatus] = useState('idle')
+  const [message, setMessage] = useState('')
+  const fileRef = useRef(null)
+
+  const readFile = (file) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setStatus('error')
+      setMessage('That file is not an image.')
+      return
+    }
+
+    setStatus('reading')
+    setMessage('Reading the image')
+
+    const reader = new FileReader()
+    reader.onerror = () => {
+      setStatus('error')
+      setMessage('Could not read that file.')
+    }
+    reader.onload = () => {
+      const img = new Image()
+      img.onerror = () => {
+        setStatus('error')
+        setMessage('Could not open that image.')
+      }
+      img.onload = () => {
+        // Cap the work on very large photos.
+        const scale = Math.min(1, 1400 / Math.max(img.width, img.height))
+        const w = Math.max(1, Math.round(img.width * scale))
+        const h = Math.max(1, Math.round(img.height * scale))
+
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+        ctx.drawImage(img, 0, 0, w, h)
+
+        const data = ctx.getImageData(0, 0, w, h)
+        const found = jsQR(data.data, w, h, { inversionAttempts: 'attemptBoth' })
+
+        if (found && found.data) {
+          // ScanNotice below reports what was found, so clear this line.
+          setStatus('idle')
+          setMessage('')
+          onDecoded(found.data)
+        } else {
+          setStatus('error')
+          setMessage('No QR code found in that image. Try a sharper or larger crop.')
+        }
+      }
+      img.src = reader.result
+    }
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div>
+      <div className="flex flex-col items-center border border-dashed border-line-strong bg-cream-50 px-6 py-10 text-center">
+        <span className="flex h-12 w-12 items-center justify-center rounded-sm border border-line-strong bg-white text-ink-muted">
+          <ScanLine className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <p className="mt-4 font-mono text-[11px] uppercase tracking-[0.14em] text-ink">
+          Camera preview
+        </p>
+        <p className="mt-2 max-w-sm text-xs text-ink-muted">
+          Camera scanning available in the mobile build. You can still upload a photo or a
+          screenshot of a certificate and it will be decoded here.
+        </p>
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            readFile(e.target.files && e.target.files[0])
+            e.target.value = ''
+          }}
+        />
+
+        <Button
+          type="button"
+          variant="primary"
+          className="mt-5"
+          onClick={() => fileRef.current && fileRef.current.click()}
+        >
+          <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+          Upload QR Image
+        </Button>
+      </div>
+
+      {message && (
+        <p
+          className={
+            'mt-3 font-mono text-[10px] uppercase tracking-[0.12em] ' +
+            (status === 'error'
+              ? 'text-revoked-500'
+              : status === 'done'
+                ? 'text-verified-500'
+                : 'text-ink-muted')
+          }
+        >
+          {message}
+        </p>
+      )}
     </div>
   )
 }
 
 function SingleResult({ certificate, toast }) {
   const qrRef = useRef(null)
+  const [qrOpen, setQrOpen] = useState(false)
   const revoked = certificate.revoked
   const verifyUrl = window.location.origin + '/verify/' + certificate.tokenId
   const issuerProfile = getIssuerByAddress(certificate.issuer)
@@ -320,6 +566,10 @@ function SingleResult({ certificate, toast }) {
               <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
               Copy Verification Link
             </Button>
+            <Button variant="secondary" size="sm" onClick={() => setQrOpen(true)}>
+              <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
+              Generate QR
+            </Button>
             <Button variant="secondary" size="sm" onClick={downloadQr}>
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
               Download QR
@@ -343,7 +593,11 @@ function SingleResult({ certificate, toast }) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start">
         <div>
           <p className="label mb-3">Certificate Record</p>
-          <CertificateCard certificate={certificate} size="lg" />
+          <CertificateCard
+            certificate={certificate}
+            size="lg"
+            onQrClick={() => setQrOpen(true)}
+          />
         </div>
 
         <div>
@@ -501,6 +755,8 @@ function SingleResult({ certificate, toast }) {
       <div ref={qrRef} className="hidden" aria-hidden="true">
         <QRCodeCanvas value={verifyUrl} size={512} level="M" includeMargin />
       </div>
+
+      <QRModal open={qrOpen} onClose={() => setQrOpen(false)} certificate={certificate} />
     </div>
   )
 }
@@ -545,6 +801,23 @@ function WalletResults({ certificates, address }) {
           </Link>
         ))}
       </div>
+    </div>
+  )
+}
+
+function ChainErrorResult({ message }) {
+  return (
+    <div className="card mx-auto max-w-2xl animate-fade-in px-6 py-16 text-center">
+      <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-sm border border-revoked-100 bg-revoked-50 text-revoked-500">
+        <WifiOff className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <h2 className="mt-5 font-serif text-2xl font-semibold text-ink">
+        Could not reach the blockchain
+      </h2>
+      <p className="mx-auto mt-2.5 max-w-md text-sm text-ink-soft">{message}</p>
+      <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">
+        The credential may still be fine. This is a connection problem, not a verification failure.
+      </p>
     </div>
   )
 }

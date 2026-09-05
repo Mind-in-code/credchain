@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
-import { Copy, Download } from 'lucide-react'
+import { Copy, Download, Share2 } from 'lucide-react'
 import Modal from './Modal'
 import Button from './Button'
 import { useToast } from './Toast'
@@ -18,6 +18,27 @@ export default function QRModal({ open, onClose, certificate }) {
   const copyLink = async () => {
     const ok = await copyToClipboard(verifyUrl)
     toast(ok ? 'Verification link copied' : 'Could not copy link', ok ? 'success' : 'error')
+  }
+
+  const share = async () => {
+    const payload = {
+      title: 'CredChain credential ' + displayTokenId(certificate.tokenId),
+      text: 'Verify this credential on CredChain',
+      url: verifyUrl,
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share(payload)
+        return
+      } catch (err) {
+        if (err && err.name === 'AbortError') return
+      }
+    }
+    const ok = await copyToClipboard(verifyUrl)
+    toast(
+      ok ? 'Link copied, sharing is not available here' : 'Could not copy link',
+      ok ? 'info' : 'error'
+    )
   }
 
   const download = () => {
@@ -48,12 +69,16 @@ export default function QRModal({ open, onClose, certificate }) {
         </p>
       </div>
 
-      <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-        <Button variant="secondary" onClick={copyLink} className="flex-1">
+      <div className="mt-6 grid gap-2 sm:grid-cols-3">
+        <Button variant="secondary" onClick={copyLink}>
           <Copy className="h-3.5 w-3.5" aria-hidden="true" />
           Copy Link
         </Button>
-        <Button variant="primary" onClick={download} className="flex-1">
+        <Button variant="secondary" onClick={share}>
+          <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
+          Share
+        </Button>
+        <Button variant="primary" onClick={download}>
           <Download className="h-3.5 w-3.5" aria-hidden="true" />
           Download PNG
         </Button>

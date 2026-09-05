@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import StatusStrip from '../components/StatusStrip'
+import NetworkSwitchModal from '../components/NetworkSwitchModal'
 
 export default function MainLayout() {
   const { pathname } = useLocation()
@@ -19,6 +20,7 @@ export default function MainLayout() {
         <Outlet />
       </main>
       <Footer />
+      <NetworkSwitchModal />
     </div>
   )
 }

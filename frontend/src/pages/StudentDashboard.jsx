@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CircleCheck, CircleSlash, GraduationCap, ScrollText, Wallet } from 'lucide-react'
+import {
+  CircleCheck,
+  CircleSlash,
+  GraduationCap,
+  ScrollText,
+  Wallet,
+  WifiOff,
+} from 'lucide-react'
 import Button from '../components/Button'
 import StatCard from '../components/StatCard'
 import CertificateCard from '../components/CertificateCard'
@@ -8,7 +15,12 @@ import LoadingState from '../components/LoadingState'
 import EmptyState from '../components/EmptyState'
 import WalletModal from '../components/WalletModal'
 import { useWallet } from '../hooks/useWallet'
-import { getCertificate, getCertificatesOf } from '../services/credentialService'
+import {
+  getCertificate,
+  getCertificatesOf,
+  getOwner,
+  isIssuer,
+} from '../services/credentialService'
 import { certificateView } from '../utils/certificate'
 import { shortAddress } from '../utils/format'
 
@@ -17,10 +29,14 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(false)
   const [certificates, setCertificates] = useState([])
   const [modalOpen, setModalOpen] = useState(false)
+  // True when this wallet can mint, so the empty state can point it at /issuer.
+  const [hasIssuerAccess, setHasIssuerAccess] = useState(false)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     if (!isConnected || !address) {
       setCertificates([])
+      setHasIssuerAccess(false)
       return undefined
     }
 
@@ -28,11 +44,28 @@ export default function StudentDashboard() {
     setLoading(true)
 
     async function load() {
-      const ids = await getCertificatesOf(address)
-      const certs = await Promise.all(ids.map((id) => getCertificate(id)))
-      if (!active) return
-      setCertificates(certs.filter(Boolean).map(certificateView))
+      setLoadError('')
+      try {
+        const ids = await getCertificatesOf(address)
+        const certs = await Promise.all(ids.map((id) => getCertificate(id)))
+        if (!active) return
+        setCertificates(certs.filter(Boolean).map(certificateView))
+      } catch (err) {
+        if (!active) return
+        setCertificates([])
+        setLoadError(err.message || 'Could not reach the blockchain.')
+      }
       setLoading(false)
+
+      // Checked separately so a failure here never blocks the credential list.
+      try {
+        const [whitelisted, owner] = await Promise.all([isIssuer(address), getOwner()])
+        if (!active) return
+        const isOwner = Boolean(owner) && owner.toLowerCase() === address.toLowerCase()
+        setHasIssuerAccess(Boolean(whitelisted) || isOwner)
+      } catch (err) {
+        if (active) setHasIssuerAccess(false)
+      }
     }
 
     load()
@@ -90,6 +123,19 @@ export default function StudentDashboard() {
 
       {loading ? (
         <LoadingState text="Reading your credentials from the chain" />
+      ) : loadError ? (
+        <div className="mt-8">
+          <EmptyState
+            icon={WifiOff}
+            title="Could not reach the blockchain"
+            description={loadError}
+            action={
+              <Button onClick={() => window.location.reload()} variant="secondary">
+                Try Again
+              </Button>
+            }
+          />
+        </div>
       ) : (
         <>
           <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -122,12 +168,15 @@ export default function StudentDashboard() {
               <div className="mt-6">
                 <EmptyState
                   icon={GraduationCap}
-                  title="No credentials in this wallet yet"
-                  description="When an institution issues you a credential it appears here straight away. Nothing to do on your side."
+                  title="No credentials held by this wallet"
+                  description="Credentials appear here only in the wallet they were issued to. If you are an issuer or admin, your minted credentials are on the Issuer dashboard."
                   action={
-                    <Button to="/verify" variant="secondary">
-                      Verify Someone Else's Credential
-                    </Button>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button to="/verify" variant="secondary">
+                        Verify Someone Else's Credential
+                      </Button>
+                      {hasIssuerAccess && <Button to="/issuer">Go to Issuer Dashboard</Button>}
+                    </div>
                   }
                 />
               </div>

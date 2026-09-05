@@ -10,6 +10,7 @@ import {
   QrCode,
   Share2,
   ShieldCheck,
+  WifiOff,
 } from 'lucide-react'
 import Button from '../components/Button'
 import CertificateCard from '../components/CertificateCard'
@@ -42,6 +43,7 @@ export default function CertificateDetail() {
   const [loading, setLoading] = useState(true)
   const [certificate, setCertificate] = useState(null)
   const [qrOpen, setQrOpen] = useState(false)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     let active = true
@@ -54,11 +56,19 @@ export default function CertificateDetail() {
     }
 
     setLoading(true)
-    getCertificate(tokenId).then((cert) => {
-      if (!active) return
-      setCertificate(cert ? certificateView(cert) : null)
-      setLoading(false)
-    })
+    setLoadError('')
+    getCertificate(tokenId)
+      .then((cert) => {
+        if (!active) return
+        setCertificate(cert ? certificateView(cert) : null)
+        setLoading(false)
+      })
+      .catch((err) => {
+        if (!active) return
+        setCertificate(null)
+        setLoadError(err.message || 'Could not reach the blockchain.')
+        setLoading(false)
+      })
 
     return () => {
       active = false
@@ -69,6 +79,23 @@ export default function CertificateDetail() {
     return (
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <LoadingState text="Reading the credential from the chain" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6">
+        <EmptyState
+          icon={WifiOff}
+          title="Could not reach the blockchain"
+          description={loadError}
+          action={
+            <Button onClick={() => window.location.reload()} variant="secondary">
+              Try Again
+            </Button>
+          }
+        />
       </div>
     )
   }
@@ -188,7 +215,11 @@ export default function CertificateDetail() {
       )}
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-start">
-        <CertificateCard certificate={certificate} size="lg" />
+        <CertificateCard
+          certificate={certificate}
+          size="lg"
+          onQrClick={() => setQrOpen(true)}
+        />
 
         <div className="space-y-5">
           <Panel title="Credential Details">

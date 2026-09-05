@@ -8,7 +8,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import {
   connectWallet,
   disconnectWallet,
+  getWalletChainId,
   setConnectedWallet,
+  switchToAppChain,
 } from '../services/credentialService'
 import { ADMIN_ADDRESS, ISSUER_ADDRESS, STUDENT_ADDRESS, getIssuerByAddress } from '../data/mockIssuers'
 import { CHAIN_ID, DEMO_MODE } from '../utils/network'
@@ -61,6 +63,9 @@ export function WalletProvider({ children }) {
   const [wallet, setWallet] = useState(null)
   const [connecting, setConnecting] = useState(false)
   const [error, setError] = useState('')
+  // The chain MetaMask is really on. Null until we have read it.
+  const [walletChainId, setWalletChainId] = useState(null)
+  const [switching, setSwitching] = useState(false)
 
   // Chain mode: follow MetaMask. Account switch updates the app, network
   // switch reloads so every provider is rebuilt against the new chain.
@@ -78,9 +83,12 @@ export function WalletProvider({ children }) {
       setWallet({ address: accounts[0], chainId: CHAIN_ID })
     }
 
-    const onChainChanged = () => {
-      window.location.reload()
+    const onChainChanged = (hexChainId) => {
+      const next = Number.parseInt(hexChainId, 16)
+      setWalletChainId(Number.isFinite(next) ? next : null)
     }
+
+    getWalletChainId().then(setWalletChainId)
 
     window.ethereum.on('accountsChanged', onAccountsChanged)
     window.ethereum.on('chainChanged', onChainChanged)
@@ -116,6 +124,22 @@ export function WalletProvider({ children }) {
     },
     [roleId]
   )
+
+  const switchNetwork = useCallback(async () => {
+    setSwitching(true)
+    setError('')
+    try {
+      await switchToAppChain()
+      const next = await getWalletChainId()
+      setWalletChainId(next)
+      return true
+    } catch (err) {
+      setError(err.message || 'Could not switch the network.')
+      throw err
+    } finally {
+      setSwitching(false)
+    }
+  }, [])
 
   const disconnect = useCallback(() => {
     disconnectWallet()
@@ -154,8 +178,29 @@ export function WalletProvider({ children }) {
       disconnect,
       isDemoMode: DEMO_MODE,
       adminAddress: ADMIN_ADDRESS,
+      walletChainId,
+      switching,
+      switchNetwork,
+      // Only meaningful once a wallet is present and we have read its chain.
+      isWrongNetwork:
+        !DEMO_MODE &&
+        Boolean(wallet) &&
+        walletChainId !== null &&
+        walletChainId !== CHAIN_ID,
     }),
-    [wallet, connecting, error, role, roleId, switchRole, connect, disconnect]
+    [
+      wallet,
+      connecting,
+      error,
+      role,
+      roleId,
+      switchRole,
+      connect,
+      disconnect,
+      walletChainId,
+      switching,
+      switchNetwork,
+    ]
   )
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>

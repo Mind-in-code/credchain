@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "ethers": "^6.17.0",
+    "jsqr": "^1.4.0",
     "lucide-react": "^0.441.0",
     "qrcode.react": "^4.1.0",
     "react": "^18.3.1",

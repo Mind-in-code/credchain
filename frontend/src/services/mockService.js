@@ -57,6 +57,19 @@ export function disconnectWallet() {
   connected = null
 }
 
+// Demo mode is always on the right chain and always reachable.
+export async function getWalletChainId() {
+  return CHAIN_ID
+}
+
+export async function switchToAppChain() {
+  return true
+}
+
+export async function isChainReachable() {
+  return true
+}
+
 export async function isIssuer(address) {
   await wait(200, 400)
   if (!address) return false

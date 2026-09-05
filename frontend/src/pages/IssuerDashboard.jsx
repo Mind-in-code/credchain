@@ -12,6 +12,7 @@ import {
   ScrollText,
   Search,
   TriangleAlert,
+  Users,
   Wallet,
 } from 'lucide-react'
 import Button from '../components/Button'
@@ -247,6 +248,10 @@ export default function IssuerDashboard() {
           <Button to="/issuer/certificates" variant="secondary">
             <FileText className="h-3.5 w-3.5" aria-hidden="true" />
             Issued Certificates
+          </Button>
+          <Button to="/issuer/issuers" variant="secondary">
+            <Users className="h-3.5 w-3.5" aria-hidden="true" />
+            Manage Issuers
           </Button>
           <Button to="/issuer/issue" variant="gold" disabled={!authorized}>
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />

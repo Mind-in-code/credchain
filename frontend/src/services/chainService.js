@@ -107,6 +107,41 @@ export function getConnectedWallet() {
   return connected
 }
 
+// The chain MetaMask is actually on, which may not be the one the app wants.
+export async function getWalletChainId() {
+  if (typeof window === 'undefined' || !window.ethereum) return null
+  try {
+    const hex = await window.ethereum.request({ method: 'eth_chainId' })
+    return Number.parseInt(hex, 16)
+  } catch (err) {
+    return null
+  }
+}
+
+// Asks MetaMask to move to the app's chain, adding it if it is unknown.
+export async function switchToAppChain() {
+  if (typeof window === 'undefined' || !window.ethereum) {
+    throw new Error('MetaMask is not installed.')
+  }
+  try {
+    const provider = new ethers.BrowserProvider(window.ethereum)
+    await ensureCorrectChain(provider)
+    return true
+  } catch (err) {
+    throw new Error(friendlyError(err))
+  }
+}
+
+// True when the read provider can actually reach the chain.
+export async function isChainReachable() {
+  try {
+    await readProvider().getBlockNumber()
+    return true
+  } catch (err) {
+    return false
+  }
+}
+
 export function disconnectWallet() {
   // MetaMask has no programmatic disconnect. We forget the account locally.
   connected = null

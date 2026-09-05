@@ -32,6 +32,10 @@ export const revokeCertificate = (...args) => impl.revokeCertificate(...args)
 export const addIssuer = (...args) => impl.addIssuer(...args)
 export const removeIssuer = (...args) => impl.removeIssuer(...args)
 
+export const getWalletChainId = (...args) => impl.getWalletChainId(...args)
+export const switchToAppChain = (...args) => impl.switchToAppChain(...args)
+export const isChainReachable = (...args) => impl.isChainReachable(...args)
+
 // Chain mode only. Used by the wallet hook when MetaMask switches account.
 export const setConnectedWallet = (address) =>
   typeof impl.setConnectedWallet === 'function' ? impl.setConnectedWallet(address) : null
