@@ -111,8 +111,9 @@ export default function AddIssuerModal({ open, onClose, onSubmit }) {
         />
 
         <p className="border border-gold-500 bg-gold-50 px-3 py-2.5 text-xs leading-relaxed text-ink-soft">
-          Only the wallet address goes on chain. The name, role and department are stored in this
-          browser for the session, because the contract keeps a flat whitelist with no roles.
+          Only the wallet address goes on chain. The name, role and department are saved in this
+          browser and survive a refresh, because the contract keeps a flat whitelist with no
+          roles. They are local to this machine.
         </p>
       </div>
 

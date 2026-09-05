@@ -29,6 +29,7 @@ import { useWallet } from '../hooks/useWallet'
 import {
   addIssuer,
   getIssuedBy,
+  getIssuers,
   getOwner,
   isIssuer,
   revokeCertificate,
@@ -66,6 +67,8 @@ export default function IssuerDashboard() {
   const [search, setSearch] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
   const [contractOwner, setContractOwner] = useState('')
+  // Admin view only: every credential on the contract, not just this wallet's.
+  const [contractCerts, setContractCerts] = useState(null)
 
   // Admin only: whitelist a new issuer wallet.
   const [newIssuer, setNewIssuer] = useState('')
@@ -94,12 +97,32 @@ export default function IssuerDashboard() {
     setLoading(true)
 
     Promise.all([isIssuer(address), getIssuedBy(address), getOwner()]).then(
-      ([allowed, issued, owner]) => {
+      async ([allowed, issued, owner]) => {
         if (!active) return
         setAuthorized(allowed)
         setCertificates(issued.map(certificateView))
         setContractOwner(owner || '')
         setLoading(false)
+
+        const ownsContract = Boolean(owner) && owner.toLowerCase() === address.toLowerCase()
+        if (!ownsContract) {
+          setContractCerts(null)
+          return
+        }
+
+        // Everything on the contract: every wallet that was ever an issuer.
+        try {
+          const list = await getIssuers()
+          const perIssuer = await Promise.all(list.map((i) => getIssuedBy(i.address)))
+          if (!active) return
+
+          const seen = new Map()
+          perIssuer.flat().forEach((cert) => seen.set(cert.tokenId, cert))
+          setContractCerts([...seen.values()].map(certificateView))
+        } catch (err) {
+          // Fall back to the per wallet view rather than showing nothing.
+          if (active) setContractCerts(null)
+        }
       }
     )
 
@@ -108,13 +131,18 @@ export default function IssuerDashboard() {
     }
   }, [isConnected, address, reloadKey])
 
-  const total = certificates.length
-  const revoked = certificates.filter((c) => c.revoked).length
+  // The admin sees the whole contract, an issuer sees only its own wallet.
+  const showContractWide = Boolean(contractCerts)
+  const rows = showContractWide ? contractCerts : certificates
+
+  const total = rows.length
+  const revoked = rows.filter((c) => c.revoked).length
   const active = total - revoked
+  const statHint = showContractWide ? 'Across all issuers' : null
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return certificates
+    return rows
       .filter((c) => {
         if (filter === 'valid') return !c.revoked
         if (filter === 'revoked') return c.revoked
@@ -126,11 +154,12 @@ export default function IssuerDashboard() {
           c.student.toLowerCase().includes(term) ||
           c.course.toLowerCase().includes(term) ||
           c.owner.toLowerCase().includes(term) ||
+          (c.issuer || '').toLowerCase().includes(term) ||
           String(c.tokenId).includes(term)
         )
       })
       .sort((a, b) => b.tokenId - a.tokenId)
-  }, [certificates, filter, search])
+  }, [rows, filter, search])
 
   const confirmRevoke = async () => {
     const cert = toRevoke
@@ -268,8 +297,11 @@ export default function IssuerDashboard() {
               This wallet is not an authorized issuer
             </p>
             <p className="mt-2 text-sm text-ink-soft">
-              The contract admin has to whitelist {shortAddress(address)} before it can mint
-              credentials. Switch the demo role to Issuer to see the full dashboard.
+              {isOwner
+                ? 'As contract admin you can whitelist issuers below, but only whitelisted wallets can mint.'
+                : 'The contract admin has to whitelist ' +
+                  shortAddress(address) +
+                  ' before it can mint credentials.'}
             </p>
           </div>
         </div>
@@ -284,28 +316,28 @@ export default function IssuerDashboard() {
               label="Total Credentials"
               value={total}
               icon={ScrollText}
-              hint="Minted from this wallet"
+              hint={statHint || 'Minted from this wallet'}
             />
             <StatCard
               label="Currently Valid"
               value={active}
               icon={CircleCheck}
               tone="verified"
-              hint="Not revoked by the issuer"
+              hint={statHint || 'Not revoked by the issuer'}
             />
             <StatCard
               label="Revoked"
               value={revoked}
               icon={CircleSlash}
               tone="revoked"
-              hint="Marked invalid on-chain"
+              hint={statHint || 'Marked invalid on-chain'}
             />
             <StatCard
               label="Pending"
               value={0}
               icon={FileText}
               tone="gold"
-              hint="No queued mints"
+              hint={statHint || 'No queued mints'}
             />
           </div>
 
@@ -391,7 +423,9 @@ export default function IssuerDashboard() {
                   Issued Credentials Registry
                 </h2>
                 <p className="mt-1.5 text-sm text-ink-soft">
-                  Every credential minted from this wallet, read from the contract.
+                  {showContractWide
+                    ? 'Every credential on this contract, across all issuers.'
+                    : 'Every credential minted from this wallet, read from the contract.'}
                 </p>
               </div>
               <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em] text-verified-500">
@@ -464,6 +498,7 @@ export default function IssuerDashboard() {
                         'Token ID',
                         'Recipient',
                         'Credential',
+                        ...(showContractWide ? ['Issuer'] : []),
                         'Issued',
                         'Transaction',
                         'Status',
@@ -510,6 +545,13 @@ export default function IssuerDashboard() {
                             Grade {c.grade}
                           </p>
                         </td>
+                        {showContractWide && (
+                          <td className="px-4 py-4">
+                            <span className="font-mono text-[11px] text-ink-soft">
+                              {shortAddress(c.issuer, 6, 4)}
+                            </span>
+                          </td>
+                        )}
                         <td className="px-4 py-4">
                           <span className="font-mono text-[11px] text-ink-soft">
                             {formatDate(c.date)}
@@ -582,7 +624,9 @@ export default function IssuerDashboard() {
                 Showing {visible.length} of {total} credentials
               </p>
               <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">
-                Revoking is permanent and cannot be undone
+                {showContractWide
+                  ? 'Across all issuers | as admin you can revoke any credential'
+                  : 'Revoking is permanent and cannot be undone'}
               </p>
             </div>
           </section>

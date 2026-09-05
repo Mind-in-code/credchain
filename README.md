@@ -74,15 +74,20 @@ Both were minted with a real `ipfs://` token URI pinned through Pinata.
 - **Public verification, no wallet needed.** Verify by credential ID or by wallet
   address. Reads go through a public RPC endpoint, so a recruiter with no wallet
   and no account can check a credential.
-- **Revocation.** The issuing institution, or the admin, can revoke a credential.
+- **Revocation.** The issuing institution can revoke a credential, and so can the
+  contract admin, which the contract enforces with
+  `msg.sender == cert.issuer || msg.sender == owner()`.
   The issued certificates page opens a confirmation modal with a required reason
   (Fraudulent credential, Incorrect information, Administrative correction,
   Other). The credential stays in the student's wallet but every verification
   from then on shows it as revoked, in red. The contract stores only the revoked
   flag, so the reason is a local record and is not written on-chain.
 - **QR verification.** Every certificate carries a QR code pointing at
-  `/verify/<tokenId>` on the live site. The verify page also offers a
-  downloadable QR as a PNG.
+  `/verify/<tokenId>` on the live site. On the verify result and the certificate
+  detail page the QR is clickable and opens a modal with Copy Link, Share and
+  Download PNG. The verify page also has a **Scan QR** tab: upload a photo or a
+  screenshot of a certificate and it is decoded in the browser with jsQR, then
+  verified in place without leaving the tab.
 - **Student credential wallet.** `/student` shows everything the connected
   wallet holds, with Total, Verified and Revoked counts and a card per
   credential. If the wallet holds none, it says so and points issuers and admins
@@ -98,6 +103,33 @@ Both were minted with a real `ipfs://` token URI pinned through Pinata.
   student name, wallet or token ID, and sortable Issued and Status columns. Each
   row links to the detail page and the public verify page, and carries the revoke
   action.
+- **Issuer management.** `/issuer/issuers` shows the whitelist as a tree:
+  Contract Admin at the root, expanding to Department Head and Authorized Issuer
+  nodes. Each card shows name, role, wallet and active status, with Approve and
+  Revoke Access. An **Add Issuer** modal takes a wallet, name, role and
+  department, and shows a one line permission description per role. The page
+  carries a visible note that the contract holds a flat whitelist, so the tiers
+  and labels are frontend only and are not enforced on chain. Those labels are
+  saved in `localStorage` keyed by wallet address, so they survive a refresh on
+  that machine, while only the address itself goes on chain. The whole page is
+  read-only unless the connected wallet is the contract admin.
+- **Admin contract-wide view.** When the contract owner connects, the issuer
+  dashboard and `/issuer/certificates` switch from that wallet's credentials to
+  every credential on the contract, captioned "Across all issuers", with an extra
+  Issuer column showing which wallet minted each one. The contract lets the owner
+  revoke anything, so the admin can revoke any credential from that view, not
+  only the ones its own wallet issued.
+- **Wrong network handling.** If the connected wallet is on another chain, a
+  modal appears naming the chain it is on and the one the app needs, with a
+  **Switch to Sepolia Testnet** button that calls MetaMask and adds the network
+  if it is unknown. Verifying is unaffected, so the modal can be dismissed.
+- **Loading, empty and error states throughout.** Loading the chain, connecting a
+  wallet, fetching IPFS metadata, no credentials, credential not found, chain
+  unreachable, wrong network, transaction rejected and transaction failed each
+  have their own wording. A failed metadata fetch keeps the on-chain record
+  visible and says the details are unavailable rather than showing blanks, and a
+  chain error on the verify page states plainly that it is a connection problem
+  and not a verification failure.
 - **Demo mode.** Setting `VITE_DEMO_MODE=true` swaps the whole data layer to
   seeded mock data and shows a role switcher, so the product can be demonstrated
   with no chain, no wallet and no network.
@@ -115,19 +147,20 @@ Both were minted with a real `ipfs://` token URI pinned through Pinata.
 Honest scope note for judges. These were planned but not built in the time
 available, and nothing in the app pretends otherwise:
 
-- The issuer hierarchy view at `/issuer/issuers`, with the tree of admin,
-  department head and issuer, and the Add Issuer modal. Whitelisting is instead
-  done from the admin panel on the issuer dashboard.
-- The QR scanning tab on the verify page. QR codes on certificates are real and
-  scannable with any phone camera, but the site itself cannot read one from your
-  webcam or from an uploaded image.
-- The QR modal is on the certificate detail page only. It is not wired to the
-  certificate card or the verify result, which offer a direct QR download
-  instead.
-- The wrong-network modal. If MetaMask is on another chain the app asks it to
-  switch, but there is no dedicated screen for that state.
-- The quick Revoke on the issuer dashboard still uses a short confirm dialog. The
-  full modal with the required reason is on the issued certificates page.
+- **Live camera scanning.** The Scan QR tab decodes an uploaded image for real,
+  but there is no webcam capture. That panel is a placeholder saying camera
+  scanning is available in the mobile build.
+- **A mobile and accessibility pass.** The layouts use responsive classes and
+  icon buttons carry aria labels, but the deliberate sweep for small screens,
+  focus order and screen readers has not been done.
+- **Two different revoke dialogs.** The issued certificates page uses the full
+  modal with the required reason dropdown. The quick Revoke on the issuer
+  dashboard is still a short confirm without a reason.
+- **The QR modal is not on the small cards.** It opens from the large certificate
+  on the verify result and the detail page. The compact cards on the student
+  dashboard and in wallet lookup results are links to the full record instead.
+- **No page transition animations.** Framer Motion was optional in the spec and
+  was left out to keep the bundle small.
 
 ---
 
@@ -415,15 +448,24 @@ credchain/
     .env.example
   frontend/                         Vite + React app
     src/
-      components/                   UI, including CertificateCard
-      pages/                        Landing, Verify, Issuer dashboard, Issue
+      components/                   UI, including CertificateCard and the modals
+      pages/
+        Landing.jsx                 hero, problem, pillars, stats
+        Verify.jsx                  /verify, by ID, by wallet, Scan QR tab
+        CertificateDetail.jsx       /certificates/:id, public record page
+        StudentDashboard.jsx        /student, credentials held by a wallet
+        IssuerDashboard.jsx         /issuer, stats, admin panel, registry table
+        IssueCredential.jsx         /issuer/issue, the four step mint form
+        IssuerCertificates.jsx      /issuer/certificates, filter, search, sort
+        IssuerManagement.jsx        /issuer/issuers, whitelist tree, Add Issuer
       services/
         credentialService.js        the switch, the only file pages import
         chainService.js             real ethers implementation
         mockService.js              demo data implementation
         ipfs.js                     Pinata pin and gateway fetch
-      hooks/useWallet.jsx           MetaMask state and events
-      utils/                        network config, errors, formatting
+      hooks/useWallet.jsx           MetaMask state, chain and account events
+      utils/                        network config, errors, formatting,
+                                    issuer labels in localStorage
       contracts/                    ABI and addresses, written by exportAbi
       data/                         mock data for demo mode
     .env.example

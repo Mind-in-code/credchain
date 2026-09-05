@@ -22,7 +22,13 @@ import TransactionModal from '../components/TransactionModal'
 import { REVOKE_STAGES } from '../components/TransactionProgress'
 import { useToast } from '../components/Toast'
 import { useWallet } from '../hooks/useWallet'
-import { getIssuedBy, isIssuer, revokeCertificate } from '../services/credentialService'
+import {
+  getIssuedBy,
+  getIssuers,
+  getOwner,
+  isIssuer,
+  revokeCertificate,
+} from '../services/credentialService'
 import { certificateView } from '../utils/certificate'
 import {
   HAS_EXPLORER,
@@ -48,6 +54,8 @@ export default function IssuerCertificates() {
   const [walletModalOpen, setWalletModalOpen] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [loadError, setLoadError] = useState('')
+  // Admin view only: every credential on the contract.
+  const [contractCerts, setContractCerts] = useState(null)
 
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -73,12 +81,31 @@ export default function IssuerCertificates() {
     setLoading(true)
 
     setLoadError('')
-    Promise.all([isIssuer(address), getIssuedBy(address)])
-      .then(([allowed, issued]) => {
+    Promise.all([isIssuer(address), getIssuedBy(address), getOwner()])
+      .then(async ([allowed, issued, owner]) => {
         if (!active) return
         setAuthorized(allowed)
         setCertificates(issued.map(certificateView))
         setLoading(false)
+
+        const ownsContract = Boolean(owner) && owner.toLowerCase() === address.toLowerCase()
+        if (!ownsContract) {
+          setContractCerts(null)
+          return
+        }
+
+        // Everything on the contract: every wallet that was ever an issuer.
+        try {
+          const list = await getIssuers()
+          const perIssuer = await Promise.all(list.map((i) => getIssuedBy(i.address)))
+          if (!active) return
+
+          const seen = new Map()
+          perIssuer.flat().forEach((cert) => seen.set(cert.tokenId, cert))
+          setContractCerts([...seen.values()].map(certificateView))
+        } catch (err) {
+          if (active) setContractCerts(null)
+        }
       })
       .catch((err) => {
         if (!active) return
@@ -101,9 +128,12 @@ export default function IssuerCertificates() {
     }
   }
 
+  const showContractWide = Boolean(contractCerts)
+  const source = showContractWide ? contractCerts : certificates
+
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase()
-    const rows = certificates
+    const rows = source
       .filter((c) => {
         if (filter === 'valid') return !c.revoked
         if (filter === 'revoked') return c.revoked
@@ -115,6 +145,7 @@ export default function IssuerCertificates() {
           (c.student || '').toLowerCase().includes(term) ||
           (c.course || '').toLowerCase().includes(term) ||
           (c.owner || '').toLowerCase().includes(term) ||
+          (c.issuer || '').toLowerCase().includes(term) ||
           String(c.tokenId).includes(term)
         )
       })
@@ -135,10 +166,10 @@ export default function IssuerCertificates() {
     })
 
     return sortDir === 'desc' ? sorted.reverse() : sorted
-  }, [certificates, filter, search, sortBy, sortDir])
+  }, [source, filter, search, sortBy, sortDir])
 
-  const total = certificates.length
-  const revokedCount = certificates.filter((c) => c.revoked).length
+  const total = source.length
+  const revokedCount = source.filter((c) => c.revoked).length
   const validCount = total - revokedCount
 
   const confirmRevoke = async (certificate, reason) => {
@@ -198,16 +229,30 @@ export default function IssuerCertificates() {
         Issued Certificates
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-ink-soft">
-        Every credential minted from {shortAddress(address)}, read straight from the contract.
-        Revoking is permanent.
+        {showContractWide
+          ? 'Every credential on this contract, across all issuers, read straight from the chain.'
+          : 'Every credential minted from ' +
+            shortAddress(address) +
+            ', read straight from the contract. Revoking is permanent.'}
       </p>
 
-      {!authorized && (
+      {!authorized && !showContractWide && (
         <div className="mt-6 flex items-start gap-3 border border-gold-500 bg-gold-50 px-5 py-4">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-gold-600" aria-hidden="true" />
           <p className="text-sm text-ink-soft">
             This wallet is not a whitelisted issuer, so it has not minted anything. Connect the
             issuer wallet to see its registry.
+          </p>
+        </div>
+      )}
+
+      {showContractWide && (
+        <div className="mt-6 flex items-start gap-3 border border-line-strong bg-cream-200 px-5 py-4">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+          <p className="text-sm text-ink-soft">
+            You are connected as the contract admin, so this is the whole contract across all
+            issuers. The contract lets the admin revoke any credential, not only the ones this
+            wallet issued, so the revoke action is available on every row.
           </p>
         </div>
       )}
@@ -291,6 +336,7 @@ export default function IssuerCertificates() {
                   <tr className="bg-navy">
                     <Th>Student</Th>
                     <Th>Credential</Th>
+                    {showContractWide && <Th>Issuer</Th>}
                     <Th>Token ID</Th>
                     <SortableTh
                       label="Issued"
@@ -334,6 +380,13 @@ export default function IssuerCertificates() {
                           Grade {c.grade || '-'}
                         </p>
                       </td>
+                      {showContractWide && (
+                        <td className="px-4 py-4">
+                          <span className="font-mono text-[11px] text-ink-soft">
+                            {shortAddress(c.issuer, 6, 4)}
+                          </span>
+                        </td>
+                      )}
                       <td className="px-4 py-4">
                         <Link
                           to={'/certificates/' + c.tokenId}
@@ -422,7 +475,9 @@ export default function IssuerCertificates() {
               Showing {visible.length} of {total} credentials
             </p>
             <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">
-              Sorted by {sortBy === 'date' ? 'issue date' : 'status'}, {sortDir === 'desc' ? 'newest first' : 'oldest first'}
+              {showContractWide ? 'Across all issuers | ' : ''}
+              Sorted by {sortBy === 'date' ? 'issue date' : 'status'},{' '}
+              {sortDir === 'desc' ? 'newest first' : 'oldest first'}
             </p>
           </div>
         </section>

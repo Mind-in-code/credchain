@@ -23,10 +23,12 @@ import { useWallet } from '../hooks/useWallet'
 import { addIssuer, getIssuers, getOwner, removeIssuer } from '../services/credentialService'
 import { getIssuerByAddress } from '../data/mockIssuers'
 import { HAS_EXPLORER, explorerAddressUrl, shortAddress } from '../utils/format'
+import { loadIssuerLabels, saveIssuerLabel } from '../utils/issuerLabels'
 
 const ROLE_ORDER = ['Super Admin', 'Department Head', 'Issuer']
 
-// Roles live in browser state, so a label survives only for this session.
+// Labels come from localStorage first, then the seeded demo data, then a
+// generated fallback. The contract stores none of this.
 function labelFor(address, overrides) {
   const key = address.toLowerCase()
   if (overrides[key]) return overrides[key]
@@ -55,7 +57,8 @@ export default function IssuerManagement() {
   const [walletModalOpen, setWalletModalOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [expanded, setExpanded] = useState({ root: true })
-  const [overrides, setOverrides] = useState({})
+  // Seeded from localStorage so labels survive a refresh on this machine.
+  const [overrides, setOverrides] = useState(() => loadIssuerLabels())
 
   const [txOpen, setTxOpen] = useState(false)
   const [stage, setStage] = useState(null)
@@ -134,14 +137,13 @@ export default function IssuerManagement() {
 
   const onAdd = (form) => {
     setAddOpen(false)
-    setOverrides((prev) => ({
-      ...prev,
-      [form.address.toLowerCase()]: {
-        name: form.name,
-        role: form.role,
-        department: form.department,
-      },
-    }))
+    // Written to localStorage, and the returned map becomes the new state.
+    const updated = saveIssuerLabel(form.address, {
+      name: form.name,
+      role: form.role,
+      department: form.department,
+    })
+    setOverrides(updated)
     runTx('Whitelisting Issuer', () => addIssuer(form.address, setStage), 'Issuer whitelisted')
   }
 
@@ -216,8 +218,8 @@ export default function IssuerManagement() {
         <p className="text-sm leading-relaxed text-ink-soft">
           The contract keeps a flat whitelist: a wallet is either allowed to mint or it is not.
           Only the wallet address and its whitelisted status are on chain. The tiers, names and
-          departments shown below are frontend labels held in this browser for the session, and
-          they are not enforced by the contract.
+          departments shown below are frontend labels saved in this browser, so they persist on
+          this machine but are not enforced by the contract and are not visible to anyone else.
         </p>
       </div>
 
