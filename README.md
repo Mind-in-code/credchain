@@ -75,11 +75,29 @@ Both were minted with a real `ipfs://` token URI pinned through Pinata.
   address. Reads go through a public RPC endpoint, so a recruiter with no wallet
   and no account can check a credential.
 - **Revocation.** The issuing institution, or the admin, can revoke a credential.
-  It stays in the student's wallet but every verification then shows it as
-  revoked, with the reason shown in red.
+  The issued certificates page opens a confirmation modal with a required reason
+  (Fraudulent credential, Incorrect information, Administrative correction,
+  Other). The credential stays in the student's wallet but every verification
+  from then on shows it as revoked, in red. The contract stores only the revoked
+  flag, so the reason is a local record and is not written on-chain.
 - **QR verification.** Every certificate carries a QR code pointing at
   `/verify/<tokenId>` on the live site. The verify page also offers a
   downloadable QR as a PNG.
+- **Student credential wallet.** `/student` shows everything the connected
+  wallet holds, with Total, Verified and Revoked counts and a card per
+  credential. If the wallet holds none, it says so and points issuers and admins
+  at the issuer dashboard instead.
+- **Certificate detail page.** `/certificates/<tokenId>` is a public page showing
+  the full certificate plus four panels: Credential Details, Blockchain Proof
+  (network, contract, token ID, transaction, owner, status), IPFS Metadata with a
+  link to the pinned JSON, and Verification. It has Copy Verification Link,
+  Generate QR (a modal with a downloadable PNG) and Share, which uses the native
+  share sheet where the browser has one and copies the link otherwise.
+- **Issued certificates registry.** `/issuer/certificates` lists every credential
+  minted from the connected wallet, with All / Valid / Revoked filters, search by
+  student name, wallet or token ID, and sortable Issued and Status columns. Each
+  row links to the detail page and the public verify page, and carries the revoke
+  action.
 - **Demo mode.** Setting `VITE_DEMO_MODE=true` swaps the whole data layer to
   seeded mock data and shows a role switcher, so the product can be demonstrated
   with no chain, no wallet and no network.
@@ -97,12 +115,19 @@ Both were minted with a real `ipfs://` token URI pinned through Pinata.
 Honest scope note for judges. These were planned but not built in the time
 available, and nothing in the app pretends otherwise:
 
-- Student dashboard at `/student` and a per-certificate detail page.
-- A standalone issuer certificates page with sorting. The issuer dashboard does
-  include a registry table with filters and search.
-- The issuer hierarchy view, and a QR scanning tab on the verify page.
-- The revoke confirmation is a simple dialog. The richer version with a required
-  reason dropdown was planned for a later phase.
+- The issuer hierarchy view at `/issuer/issuers`, with the tree of admin,
+  department head and issuer, and the Add Issuer modal. Whitelisting is instead
+  done from the admin panel on the issuer dashboard.
+- The QR scanning tab on the verify page. QR codes on certificates are real and
+  scannable with any phone camera, but the site itself cannot read one from your
+  webcam or from an uploaded image.
+- The QR modal is on the certificate detail page only. It is not wired to the
+  certificate card or the verify result, which offer a direct QR download
+  instead.
+- The wrong-network modal. If MetaMask is on another chain the app asks it to
+  switch, but there is no dedicated screen for that state.
+- The quick Revoke on the issuer dashboard still uses a short confirm dialog. The
+  full modal with the required reason is on the issued certificates page.
 
 ---
 
