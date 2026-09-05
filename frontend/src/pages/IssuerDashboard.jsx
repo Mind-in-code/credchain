@@ -7,6 +7,7 @@ import {
   ExternalLink,
   FileText,
   Ban,
+  ShieldPlus,
   Plus,
   ScrollText,
   Search,
@@ -19,11 +20,18 @@ import LoadingState from '../components/LoadingState'
 import EmptyState from '../components/EmptyState'
 import WalletModal from '../components/WalletModal'
 import Modal from '../components/Modal'
+import Input from '../components/Input'
 import TransactionModal from '../components/TransactionModal'
 import { REVOKE_STAGES } from '../components/TransactionProgress'
 import { useToast } from '../components/Toast'
 import { useWallet } from '../hooks/useWallet'
-import { getIssuedBy, isIssuer, revokeCertificate } from '../services/credentialService'
+import {
+  addIssuer,
+  getIssuedBy,
+  getOwner,
+  isIssuer,
+  revokeCertificate,
+} from '../services/credentialService'
 import { certificateView } from '../utils/certificate'
 import { getIssuerByAddress } from '../data/mockIssuers'
 import {
@@ -33,6 +41,7 @@ import {
   explorerTxUrl,
   formatDate,
   shortAddress,
+  isValidAddress,
   shortHash,
   HAS_EXPLORER,
   NETWORK_NAME,
@@ -55,6 +64,15 @@ export default function IssuerDashboard() {
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  const [contractOwner, setContractOwner] = useState('')
+
+  // Admin only: whitelist a new issuer wallet.
+  const [newIssuer, setNewIssuer] = useState('')
+  const [newIssuerError, setNewIssuerError] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
+  const [addStage, setAddStage] = useState(null)
+  const [addResult, setAddResult] = useState(null)
+  const [addError, setAddError] = useState('')
 
   // Revoke flow: confirm dialog, then the transaction modal.
   const [toRevoke, setToRevoke] = useState(null)
@@ -74,12 +92,15 @@ export default function IssuerDashboard() {
     let active = true
     setLoading(true)
 
-    Promise.all([isIssuer(address), getIssuedBy(address)]).then(([allowed, issued]) => {
-      if (!active) return
-      setAuthorized(allowed)
-      setCertificates(issued.map(certificateView))
-      setLoading(false)
-    })
+    Promise.all([isIssuer(address), getIssuedBy(address), getOwner()]).then(
+      ([allowed, issued, owner]) => {
+        if (!active) return
+        setAuthorized(allowed)
+        setCertificates(issued.map(certificateView))
+        setContractOwner(owner || '')
+        setLoading(false)
+      }
+    )
 
     return () => {
       active = false
@@ -132,10 +153,40 @@ export default function IssuerDashboard() {
     }
   }
 
+  const submitAddIssuer = async () => {
+    const value = newIssuer.trim()
+    if (!isValidAddress(value)) {
+      setNewIssuerError('Enter a valid address: 0x followed by 40 hex characters.')
+      return
+    }
+
+    setNewIssuerError('')
+    setAddError('')
+    setAddResult(null)
+    setAddStage('preparing')
+    setAddOpen(true)
+
+    try {
+      const result = await addIssuer(value, setAddStage)
+      setAddResult(result)
+      toast('Issuer whitelisted')
+      setNewIssuer('')
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      setAddStage('error')
+      setAddError(err.message || 'The transaction failed.')
+    }
+  }
+
   const copyHash = async (value) => {
     const ok = await copyToClipboard(value)
     toast(ok ? 'Transaction hash copied' : 'Could not copy', ok ? 'success' : 'error')
   }
+
+  const isOwner =
+    Boolean(contractOwner) &&
+    Boolean(address) &&
+    contractOwner.toLowerCase() === address.toLowerCase()
 
   if (!isConnected) {
     return (
@@ -181,6 +232,12 @@ export default function IssuerDashboard() {
               <span className="inline-flex items-center gap-1.5 border border-gold-500 bg-gold-50 px-2.5 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-gold-700">
                 <TriangleAlert className="h-3 w-3" aria-hidden="true" />
                 Not Whitelisted
+              </span>
+            )}
+            {isOwner && (
+              <span className="inline-flex items-center gap-1.5 border border-navy bg-navy px-2.5 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-cream-50">
+                <ShieldPlus className="h-3 w-3" aria-hidden="true" />
+                Contract Admin
               </span>
             )}
           </div>
@@ -275,6 +332,51 @@ export default function IssuerDashboard() {
               </p>
             </div>
           </div>
+
+          {/* Admin only: whitelist an issuer wallet. */}
+          {isOwner && (
+            <section className="card mt-6 border-gold-500">
+              <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
+                <div className="flex items-center gap-2.5">
+                  <ShieldPlus className="h-4 w-4 text-gold-600" aria-hidden="true" />
+                  <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-ink">
+                    Admin: Whitelist an Issuer
+                  </h2>
+                </div>
+                <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-gold-600">
+                  Contract owner only
+                </span>
+              </div>
+
+              <div className="p-5">
+                <p className="text-sm text-ink-soft">
+                  Only whitelisted wallets can mint credentials. You are connected as the contract
+                  owner, so you can add one.
+                </p>
+
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <Input
+                      label="Issuer wallet address"
+                      name="newIssuer"
+                      value={newIssuer}
+                      onChange={(e) => {
+                        setNewIssuer(e.target.value)
+                        setNewIssuerError('')
+                      }}
+                      placeholder="0x..."
+                      error={newIssuerError}
+                      className="font-mono"
+                    />
+                  </div>
+                  <Button variant="gold" onClick={submitAddIssuer} className="sm:mb-0">
+                    <ShieldPlus className="h-3.5 w-3.5" aria-hidden="true" />
+                    Add Issuer
+                  </Button>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Registry table */}
           <section className="card mt-8">
@@ -525,6 +627,27 @@ export default function IssuerDashboard() {
           </div>
         )}
       </Modal>
+
+      <TransactionModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        stage={addStage}
+        stages={REVOKE_STAGES.map((st) =>
+          st.id === 'done' ? { id: 'done', label: 'Issuer whitelisted' } : st
+        )}
+        result={addResult}
+        error={addError}
+        title="Whitelisting Issuer"
+        successTitle="Issuer Whitelisted"
+        successMessage="This wallet can now mint credentials from the issuer dashboard."
+        actions={
+          addResult ? (
+            <Button variant="secondary" onClick={() => setAddOpen(false)} className="flex-1">
+              Close
+            </Button>
+          ) : null
+        }
+      />
 
       <TransactionModal
         open={revokeOpen}

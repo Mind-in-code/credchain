@@ -1,0 +1,9 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "address": "0x1caa218252664041DD4bDC876acc7588f0828a00",
+  "deployBlock": 11641079,
+  "name": "CredChain Certificate",
+  "symbol": "CRED",
+  "deployedAt": "2026-09-05T15:01:13.396Z"
+}
