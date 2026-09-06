@@ -481,7 +481,7 @@ credchain/
 | Anushka Vora | Project lead, frontend, Sepolia and Vercel deployment |
 | Palak Soni | Smart contract (Solidity, OpenZeppelin, Hardhat tests) |
 | Simran Sharma | Contract integration, wallet flow, testing on Sepolia |
-| Sanjeevani Panigrahy | IPFS metadata via Pinata, UI design, demo video |
+| Sanjeevani Panigrahy | IPFS metadata via Pinata, UI design |
 
 ---
 
